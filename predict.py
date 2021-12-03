@@ -1,8 +1,7 @@
 from __future__ import unicode_literals, print_function, division
 
-import random
-
 import numpy as np
+import pandas as pd
 import torch
 
 import const
@@ -55,19 +54,19 @@ def bagSim(v1, v2):
         tmp = v2
         v2 = v1
         v1 = tmp
-    return sum(1 for word in v1 if word in v2)
+    return sum(1 for word in v1 if word in v2) / len(v1)
 
 
-def findMostSim(output_lang, words, pairs):
+def findMostSim(output_lang, words, pairs, func=bagSim):
     words = words[:-1]
     vec = data.tensorFromSequence(output_lang, words)
     result = None
     sMax = 0
     for pair in pairs:
-        sim = bagSim(vec, data.tensorFromSequence(output_lang, pair[1]))
+        sim = func(vec, data.tensorFromSequence(output_lang, pair[1]))
         if sim > sMax:
             sMax = sim
-            result = pair[1]
+            result = pair
 
     return result
 
@@ -76,23 +75,27 @@ def run():
     input_lang, output_lang, pairs = loader.get()
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE).to(device)
-    encoder.load_state_dict(torch.load(const.ENCODER_PATH))
+    encoder.load_state_dict(torch.load(const.SAVE_PATH + 'encoder.pt'))
     encoder.eval()
 
     decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words).to(device)
-    decoder.load_state_dict(torch.load(const.DECODER_PATH))
+    decoder.load_state_dict(torch.load(const.SAVE_PATH + 'decoder.pt'))
     decoder.eval()
 
-    for i in range(4):
-        pair = random.choice(pairs)
-        print('\nOriginal:')
-        print('input: ' + ' '.join(pair[0]))
-        print(f'expected output: {pair[1]}')
-        print('Infer:')
-        output_words = evaluate(encoder, decoder, pair[0], input_lang, output_lang)
-        print('output: ' + ' '.join(output_words))
+    queries = pd.read_csv(const.QUERY_CSV_PATH)
+
+    for i, row in queries.iterrows():
+        print()
+        print()
+        print(row['query'])
+        output_words = evaluate(encoder, decoder, row['query'].split(), input_lang, output_lang)
+        found = [pair for pair in pairs if output_words == pairs[1]]
         sim = findMostSim(output_lang, output_words, pairs)
+        print(output_words)
+        print(found)
         print(sim)
+        if i > 5:
+            break
 
 
 if __name__ == '__main__':

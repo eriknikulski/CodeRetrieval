@@ -134,8 +134,8 @@ def run():
 
     trainIters(encoder, decoder, pairs, const.ITERS, input_lang, output_lang)
 
-    torch.save(encoder.state_dict(), const.SAVE_PATH + 'encoder.pt')
-    torch.save(decoder.state_dict(), const.SAVE_PATH + 'decoder.pt')
+    torch.save(encoder.state_dict(), const.ENCODER_PATH)
+    torch.save(decoder.state_dict(), const.DECODER_PATH)
 
     print('saved models')
 
