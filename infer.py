@@ -5,9 +5,6 @@ import random
 import numpy as np
 import torch
 
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-
 import const
 import data
 import model
@@ -34,12 +31,9 @@ def evaluate(encoder, decoder, sentence, input_lang, output_lang, max_length=con
         decoder_hidden = encoder_hidden
 
         decoded_words = []
-        decoder_attentions = torch.zeros(max_length, max_length)
 
         for di in range(max_length):
-            decoder_output, decoder_hidden, decoder_attention = decoder(
-                decoder_input, decoder_hidden, encoder_outputs)
-            decoder_attentions[di] = decoder_attention.data
+            decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
             topv, topi = decoder_output.data.topk(1)
             if topi.item() == const.EOS_token:
                 decoded_words.append('<EOS>')
@@ -49,35 +43,7 @@ def evaluate(encoder, decoder, sentence, input_lang, output_lang, max_length=con
 
             decoder_input = topi.squeeze().detach()
 
-        return decoded_words, decoder_attentions[:di + 1]
-
-
-def showAttention(input_sentence, output_words, attentions):
-    # Set up figure with colorbar
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    cax = ax.matshow(attentions.numpy(), cmap='bone')
-    fig.colorbar(cax)
-
-    # Set up axes
-    ax.set_xticklabels([''] + input_sentence +
-                       ['<EOS>'], rotation=90)
-    ax.set_yticklabels([''] + output_words)
-
-    # Show label at every tick
-    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
-    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
-
-    plt.show()
-
-
-def evaluateAndShowAttention(input_sentence, pairs, encoder, decoder, input_lang, output_lang):
-    output_words, attentions = evaluate(encoder, decoder, input_sentence, input_lang, output_lang)
-    print('input =', input_sentence)
-    print('output =', ' '.join(output_words))
-    showAttention(input_sentence, output_words, attentions)
-    sim = findMostSim(output_lang, output_words, pairs)
-    print(sim)
+        return decoded_words
 
 
 def cosineSim(v1, v2):
@@ -113,17 +79,20 @@ def run():
     encoder.load_state_dict(torch.load(const.SAVE_PATH + 'encoder.pt'))
     encoder.eval()
 
-    decoder = model.AttnDecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, dropout_p=0.1).to(device)
+    decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words).to(device)
     decoder.load_state_dict(torch.load(const.SAVE_PATH + 'decoder.pt'))
     decoder.eval()
 
     for i in range(4):
         pair = random.choice(pairs)
         print('\nOriginal:')
-        print('docstring: ' + ' '.join(pair[0]))
-        print(pair[1])
-        print('Infer')
-        evaluateAndShowAttention(pair[0], pairs, encoder, decoder, input_lang, output_lang)
+        print('input: ' + ' '.join(pair[0]))
+        print(f'expected output: {pair[1]}')
+        print('Infer:')
+        output_words = evaluate(encoder, decoder, pair[0], input_lang, output_lang)
+        print('output: ' + ' '.join(output_words))
+        sim = findMostSim(output_lang, output_words, pairs)
+        print(sim)
 
 
 if __name__ == '__main__':

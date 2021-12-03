@@ -59,13 +59,13 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
     if use_teacher_forcing:
         # Teacher forcing: Feed the target as the next input
         for di in range(target_length):
-            decoder_output, decoder_hidden, decoder_attention = decoder(decoder_input, decoder_hidden, encoder_outputs)
+            decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
             loss += criterion(decoder_output, target_tensor[di])
             decoder_input = target_tensor[di]  # Teacher forcing
     else:
         # Without teacher forcing: use its own predictions as the next input
         for di in range(target_length):
-            decoder_output, decoder_hidden, decoder_attention = decoder(decoder_input, decoder_hidden, encoder_outputs)
+            decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
             topv, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
@@ -81,7 +81,7 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
     return loss.item() / target_length
 
 
-def trainIters(encoder, decoder, pairs, n_iters, input_lang, output_lang,  print_every=10, plot_every=100, learning_rate=0.001):
+def trainIters(encoder, decoder, pairs, n_iters, input_lang, output_lang,  print_every=100, plot_every=100, learning_rate=const.LEARNING_RATE):
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
@@ -121,21 +121,22 @@ def showPlot(points):
     loc = ticker.MultipleLocator(base=0.2)
     ax.yaxis.set_major_locator(loc)
     plt.plot(points)
+    fig.show()
+    plt.savefig(const.LOSS_PLOT_PATH + 'loss_plot_lr_' + str(const.LEARNING_RATE).replace('.', '_') + '_'
+                + str(const.ITERS) + 'it' + '.png')
 
 
 def run():
     input_lang, output_lang, pairs = loader.get()
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE).to(device)
-    attn_decoder = model.AttnDecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, dropout_p=0.1).to(device)
+    decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words).to(device)
 
-    trainIters(encoder, attn_decoder, pairs, const.ITERS, input_lang, output_lang)
+    trainIters(encoder, decoder, pairs, const.ITERS, input_lang, output_lang)
 
     torch.save(encoder.state_dict(), const.SAVE_PATH + 'encoder.pt')
-    torch.save(attn_decoder.state_dict(), const.SAVE_PATH + 'decoder.pt')
+    torch.save(decoder.state_dict(), const.SAVE_PATH + 'decoder.pt')
 
-    torch.save(encoder, const.SAVE_PATH + 'encoder_m.pt')
-    torch.save(attn_decoder, const.SAVE_PATH + 'decoder_m.pt')
     print('saved models')
 
 

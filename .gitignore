@@ -2,3 +2,4 @@ venv
 save/*
 data/*
 .idea
+loss_plots
