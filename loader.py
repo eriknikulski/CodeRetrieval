@@ -7,6 +7,14 @@ import const
 import data
 
 
+def printN(func):
+    def inner(*args, **kwargs):
+        a, b, n = func(*args, **kwargs)
+        print(f'Returned: {len(n)} Elements')
+        return a, b, n
+    return inner
+
+
 def remove_duplicate_code_df(df: pd.DataFrame) -> pd.DataFrame:
     "Resolve near duplicates based upon code_tokens field in data."
     assert 'code_tokens' in df.columns.values, 'Data must contain field code_tokens'
@@ -48,12 +56,13 @@ def load(file_path):
 
 
 def get_pairs(df: pd.DataFrame) -> pd.DataFrame:
-    return df.filter(items=['docstring_tokens', 'code_tokens'])[(df.docstring_tokens.map(len) < const.MAX_LENGTH) &
-                                                                (df.code_tokens.map(len) < const.MAX_LENGTH)]\
-        .applymap(data.normalizeSeq)
+    df = df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[(df.docstring_tokens.map(len) < const.MAX_LENGTH)]
+    df[['docstring_tokens', 'code_tokens']].applymap(data.normalizeSeq)
+    return df
 
 
-def get():
+@printN
+def get(min=None, max=None):
     df_test, df_train, df_valid = load(const.PROJECT_PATH + const.JAVA_PATH)
     df_test['code_tokens'] = df_test['docstring_tokens']        # only use docstrings  TODO: remove when something works
 
@@ -71,12 +80,14 @@ def get():
         for token in pair.code_tokens:
             output.addWord(token)
 
-    return input, output, pairs.values.tolist()
+    print('Size of dataset: ' + str(pairs.shape))
+    return input, output, pairs.values.tolist()[min:max]
 
 
 if __name__ == "__main__":
     _, _, pairs = get()
-    for i in range(10):
-        print(pairs[i][0])
-        print(pairs[i][1])
+    for i in range(4):
         print()
+        print(f'Input: {pairs[i][0]}')
+        print(f'Output: {pairs[i][1]}')
+        print(f'URL: {pairs[i][2]}')
