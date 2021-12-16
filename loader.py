@@ -57,7 +57,7 @@ def load(file_path):
 
 def get_pairs(df: pd.DataFrame) -> pd.DataFrame:
     df = df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[(df.docstring_tokens.map(len) < const.MAX_LENGTH)]
-    df[['docstring_tokens', 'code_tokens']].applymap(data.normalizeSeq)
+    df[['docstring_tokens', 'code_tokens']] = df[['docstring_tokens', 'code_tokens']].applymap(data.normalizeSeq)
     return df
 
 

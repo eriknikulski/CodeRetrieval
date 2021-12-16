@@ -17,7 +17,7 @@ import data
 import loader
 import model
 
-plt.switch_backend('agg')
+# plt.switch_backend('agg')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -81,18 +81,25 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
     return loss.item() / target_length
 
 
-def trainIters(encoder, decoder, pairs, n_iters, input_lang, output_lang,  print_every=100, plot_every=100, learning_rate=const.LEARNING_RATE):
+def trainIters(encoder, decoder, pairs, n_iters, input_lang, output_lang,  print_every=100, plot_every=100,
+               learning_rate=const.LEARNING_RATE, momentum=const.MOMENTUM):
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0  # Reset every plot_every
 
-    encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
-    decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
+    encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate, momentum=momentum)
+    decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate, momentum=momentum)
     training_pairs = [data.tensorsFromSeqPair(random.choice(pairs), input_lang, output_lang) for _ in range(n_iters)]
     criterion = nn.NLLLoss()
+    lr_decrease = False
 
     for iter in trange(1, n_iters + 1):
+        if iter > n_iters / 4 and not lr_decrease:
+            encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate/10, momentum=momentum)
+            decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate/10, momentum=momentum)
+            lr_decrease = True
+
         training_pair = training_pairs[iter - 1]
         input_tensor = training_pair[0]
         target_tensor = training_pair[1]
@@ -127,7 +134,7 @@ def showPlot(points):
 
 
 def run():
-    input_lang, output_lang, pairs = loader.get()
+    input_lang, output_lang, pairs = loader.get(0, 3000)
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE).to(device)
     decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words).to(device)

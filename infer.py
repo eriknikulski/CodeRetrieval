@@ -73,7 +73,8 @@ def findMostSim(output_lang, words, pairs):
 
 
 def run():
-    input_lang, output_lang, pairs = loader.get()
+    input_lang, output_lang, pairs = loader.get(3000, 3110)
+    _, _, pairs_train = loader.get(0, 3000)
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE).to(device)
     encoder.load_state_dict(torch.load(const.ENCODER_PATH))
@@ -88,11 +89,14 @@ def run():
         print('\nOriginal:')
         print('input: ' + ' '.join(pair[0]))
         print(f'expected output: {pair[1]}')
-        print('Infer:')
-        output_words = evaluate(encoder, decoder, pair[0], input_lang, output_lang)
+        print('Infer...')
+        output_words = evaluate(encoder, decoder, pair[0], input_lang, output_lang)[:-1]
         print('output: ' + ' '.join(output_words))
         sim = findMostSim(output_lang, output_words, pairs)
-        print(sim)
+        print(f'Most similar: {sim}')
+        print('Found in training set: ' + str(next((pair[1] for pair in pairs_train if pair[1] == output_words), [])))
+        sim = findMostSim(output_lang, output_words, pairs_train)
+        print(f'Most similar in training set: {sim}')
 
 
 if __name__ == '__main__':

@@ -37,13 +37,16 @@ def unicode2Ascii(s):
 
 
 def normalizeSeq(s):
-    return [el.strip() for el in [normalizeString(el) for el in s] if el.strip()]
+    val = [el.strip().lower() for el in [normalizeString(el) for el in s] if el.strip()]
+    return val
 
 
 def normalizeString(s):
     s = unicode2Ascii(s.lower().strip())
-    s = re.sub(r"([.!?])", r" \1", s)
-    s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
+    # s = re.sub(r"([.!?])", r" \1", s)
+    s = re.sub(r"([.!?])", r"", s)
+    # s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
+    s = re.sub(r"[^a-zA-Z.!?]+", r"", s)
     return s
 
 
