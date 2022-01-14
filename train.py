@@ -46,7 +46,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
             encoder_outputs[ei] = encoder_output[0, 0]
 
         decoder_input = torch.tensor([[const.SOS_token]], device=device)
-        decoder_hidden = encoder_hidden
+        decoder_hidden = encoder_hidden[0]
 
         for di in range(target_length):
             decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
@@ -91,7 +91,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, max_length=const.MAX_LENGTH
                 encoder_outputs[ei] = encoder_output[0, 0]
 
             decoder_input = torch.tensor([[const.SOS_token]], device=device)
-            decoder_hidden = encoder_hidden
+            decoder_hidden = encoder_hidden[0]
 
             for di in range(target_length):
                 decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
