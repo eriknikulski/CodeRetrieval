@@ -2,23 +2,16 @@ from dpu_utils.utils import RichPath
 from dpu_utils.codeutils.deduplication import DuplicateDetector
 import pandas as pd
 from tqdm import tqdm
+from torch.utils.data import Dataset, DataLoader
 
 import const
 import data
 
 
-def printN(func):
-    def inner(*args, **kwargs):
-        a, b, n = func(*args, **kwargs)
-        print(f'Returned: {len(n)} Elements')
-        return a, b, n
-    return inner
-
-
 def remove_duplicate_code_df(df: pd.DataFrame) -> pd.DataFrame:
     "Resolve near duplicates based upon code_tokens field in data."
     assert 'code_tokens' in df.columns.values, 'Data must contain field code_tokens'
-    assert 'language' in df.columns.values, 'Data must contain field language'
+    # assert 'language' in df.columns.values, 'Data must contain field language'
     df.reset_index(inplace=True, drop=True)
     df['doc_id'] = df.index.values
     dd = DuplicateDetector(min_num_tokens_per_document=10)
@@ -47,47 +40,55 @@ def read_folder(folder: RichPath):
     return pd.concat(dfs)
 
 
-def load(file_path):
-    # return read_folder(RichPath.create(file_path + 'test/')),\
-    #     read_folder(RichPath.create(file_path + 'train/')),\
-    #     read_folder(RichPath.create(file_path + 'valid/'))
+class CodeDataset(Dataset):
+    def __init__(self, path, transform=data.normalizeSeq, target_transform=data.normalizeSeq,
+                 max_tokens=const.MAX_LENGTH, only_labels=False):
+        self.path = path
 
-    return read_folder(RichPath.create(file_path + 'test/')), None, None
+        self.df = read_folder(RichPath.create(path))
+        self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
+        self.df[['code_tokens']] = self.df[['code_tokens']].applymap(target_transform)
+        self.df = self.df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[
+            (self.df.docstring_tokens.map(len) < max_tokens)]
+        if only_labels:
+            self.df['code_tokens'] = self.df['docstring_tokens']
+        self.df = remove_duplicate_code_df(self.df)
 
+        print('building language dictionaries')
+        self.input_lang = data.Lang('docstring')
+        self.output_lang = data.Lang('code')
+        for pair in self.df.itertuples():
+            for token in pair.docstring_tokens:
+                self.input_lang.addWord(token)
+            for token in pair.code_tokens:
+                self.output_lang.addWord(token)
 
-def get_pairs(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[(df.docstring_tokens.map(len) < const.MAX_LENGTH)]
-    df[['docstring_tokens', 'code_tokens']] = df[['docstring_tokens', 'code_tokens']].applymap(data.normalizeSeq)
-    return df
+        print('converting sequences to tensors')
+        self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(
+            lambda x: data.tensorFromSequence(self.input_lang, x))
+        self.df[['code_tokens']] = self.df[['code_tokens']].applymap(
+            lambda x: data.tensorFromSequence(self.output_lang, x))
 
+        print(f'{self.__len__()} elements loaded!\n')
 
-@printN
-def get(min=None, max=None):
-    df_test, df_train, df_valid = load(const.PROJECT_PATH + const.JAVA_PATH)
-    df_test['code_tokens'] = df_test['docstring_tokens']        # only use docstrings  TODO: remove when something works
+    def __len__(self):
+        return len(self.df)
 
-    df_test = remove_duplicate_code_df(df_test)
-    # df_train = remove_duplicate_code_df(df_train)
-    # df_valid = remove_duplicate_code_df(df_valid)
+    def __getitem__(self, idx):
+        return self.df.to_numpy()[idx][:3].tolist()
 
-    pairs = get_pairs(df_test)
-
-    input = data.Lang('query')
-    output = data.Lang('code')
-    for pair in pairs.itertuples():
-        for token in pair.docstring_tokens:
-            input.addWord(token)
-        for token in pair.code_tokens:
-            output.addWord(token)
-
-    print('Size of dataset: ' + str(pairs.shape))
-    return input, output, pairs.values.tolist()[min:max]
+    def get_langs(self):
+        return self.input_lang, self.output_lang
 
 
 if __name__ == "__main__":
-    _, _, pairs = get()
-    for i in range(4):
-        print()
-        print(f'Input: {pairs[i][0]}')
-        print(f'Output: {pairs[i][1]}')
-        print(f'URL: {pairs[i][2]}')
+    test_data = CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/')
+    test_dataloader = DataLoader(test_data, batch_size=1, shuffle=True)
+
+    test_labels, test_features, url = next(iter(test_dataloader))
+    print(f"Feature batch shape: {test_features.size()}")
+    print(f"Labels batch shape: {test_labels.size()}")
+
+    print(test_features)
+    print(test_labels)
+    print(url)
