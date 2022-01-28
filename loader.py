@@ -14,7 +14,7 @@ def remove_duplicate_code_df(df: pd.DataFrame) -> pd.DataFrame:
     # assert 'language' in df.columns.values, 'Data must contain field language'
     df.reset_index(inplace=True, drop=True)
     df['doc_id'] = df.index.values
-    dd = DuplicateDetector(min_num_tokens_per_document=10)
+    dd = DuplicateDetector(min_num_tokens_per_document=const.MIN_NUM_TOKENS)
     filter_mask = df.apply(lambda x: dd.add_file(id=x.doc_id,
                                                  tokens=x.code_tokens),
                            axis=1)
