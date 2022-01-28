@@ -12,7 +12,7 @@ class Lang:
         self.name = name
         self.word2index = {}
         self.word2count = {}
-        self.index2word = {0: 'SOS', 1: 'EOS'}
+        self.index2word = {const.SOS_token: 'SOS', const.EOS_token: 'EOS'}
         self.n_words = 2
 
     def addSentence(self, sentence):
