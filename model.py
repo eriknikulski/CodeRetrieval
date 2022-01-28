@@ -8,27 +8,33 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, input_size, hidden_size, batch_size):
         super(EncoderRNN, self).__init__()
         self.hidden_size = hidden_size
+        self.batch_size = batch_size
 
         self.embedding = nn.Embedding(input_size, hidden_size)
-        self.gru = nn.LSTM(hidden_size, hidden_size, 1)
+        self.lstm = nn.LSTM(hidden_size, hidden_size, 1)
 
     def forward(self, input, hidden):
-        embedded = self.embedding(input).view(1, 1, -1)
+        embedded = self.embedding(input).view(input[0].size(0), self.batch_size, -1)
         output = embedded
-        output, hidden = self.gru(output, hidden)
+        output, hidden = self.lstm(output, hidden)
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size, device=device), torch.zeros(1, 1, self.hidden_size, device=device)
+        return torch.zeros(1, self.batch_size, self.hidden_size, device=device), \
+               torch.zeros(1, self.batch_size, self.hidden_size, device=device)
+
+    def setBatchSize(self, batch_size):
+        self.batch_size = batch_size
 
 
 class DecoderRNN(nn.Module):
-    def __init__(self, hidden_size, output_size):
+    def __init__(self, hidden_size, output_size, batch_size):
         super(DecoderRNN, self).__init__()
         self.hidden_size = hidden_size
+        self.batch_size = batch_size
 
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size)
@@ -36,14 +42,17 @@ class DecoderRNN(nn.Module):
         self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, input, hidden):
-        output = self.embedding(input).view(1, 1, -1)
+        output = self.embedding(input).view(1, self.batch_size, -1)
         output = F.relu(output)
         output, hidden = self.gru(output, hidden)
         output = self.softmax(self.out(output[0]))
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size, device=device)
+        return torch.zeros(1, self.batch_size, self.hidden_size, device=device)
+
+    def setBatchSize(self, batch_size):
+        self.batch_size = batch_size
 
 
 class AttnDecoderRNN(nn.Module):

@@ -9,9 +9,20 @@ from torch import optim
 import const
 import loader
 import model
+import pad_collate
 
 # plt.switch_backend('agg')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def print_time(func):
+    def inner(*args, **kwargs):
+        begin = time.time()
+        res = func(*args, **kwargs)
+        end = time.time()
+        print('Total time taken: ', int(end - begin), 's')
+        return res
+    return inner
 
 
 def asMinutes(s):
@@ -28,24 +39,30 @@ def timeSince(since, percent):
     return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
 
 
+@print_time
 def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, max_length=const.MAX_LENGTH):
     size = len(dataloader.dataset)
-    for batch, ([input], [target], [url]) in enumerate(dataloader):
-        # Compute prediction and loss
-        encoder_hidden = encoder.initHidden()
+    current_batch_size = const.BATCH_SIZE
+    encoder.setBatchSize(current_batch_size)
+    decoder.setBatchSize(current_batch_size)
 
-        input_length = input.size(0)
-        target_length = target.size(0)
-
-        encoder_outputs = torch.zeros(max_length, encoder.hidden_size, device=device)
+    for batch, (inputs, targets, urls) in enumerate(dataloader):
+        if len(inputs) < const.BATCH_SIZE:
+            current_batch_size = len(inputs)
+            encoder.setBatchSize(current_batch_size)
+            decoder.setBatchSize(current_batch_size)
 
         loss = 0
 
-        for ei in range(input_length):
-            encoder_output, encoder_hidden = encoder(input[ei], encoder_hidden)
-            encoder_outputs[ei] = encoder_output[0, 0]
+        input_length = inputs[0].size(0)
+        target_length = targets[0].size(0)
 
-        decoder_input = torch.tensor([[const.SOS_token]], device=device)
+        encoder_hidden = encoder.initHidden()
+        encoder_outputs = torch.zeros(max_length, encoder.hidden_size, device=device)
+        encoder_output, encoder_hidden = encoder(inputs, encoder_hidden)
+        encoder_outputs = encoder_output[0, 0]
+
+        decoder_input = torch.tensor([[const.SOS_token] * current_batch_size], device=device)
         decoder_hidden = encoder_hidden[0]
 
         for di in range(target_length):
@@ -53,9 +70,8 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
             topv, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
-            loss += loss_fn(decoder_output, target[di])
-            if decoder_input.item() == const.EOS_token:
-                break
+            loss += loss_fn(decoder_output, targets[:,di].flatten())
+        loss = loss / target_length
 
         # Backpropagation
         encoder_optimizer.zero_grad()
@@ -64,8 +80,8 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         encoder_optimizer.step()
         decoder_optimizer.step()
 
-        if batch % 1000 == 0:
-            loss, current = loss.item() / target_length, batch
+        if batch % const.TRAINING_PER_BATCH_PRINT == 0:
+            loss, current = loss.item(), batch * const.BATCH_SIZE
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
 
 
@@ -73,24 +89,29 @@ def test_loop(encoder, decoder, dataloader, loss_fn, max_length=const.MAX_LENGTH
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
     test_loss, correct = 0, 0
+    current_batch_size = const.BATCH_SIZE_TEST
+    encoder.setBatchSize(current_batch_size)
+    decoder.setBatchSize(current_batch_size)
 
     with torch.no_grad():
-        for [input], [target], [url] in dataloader:
+        for inputs, targets, urls in dataloader:
+            if len(inputs) < const.BATCH_SIZE_TEST:
+                current_batch_size = len(inputs)
+                encoder.setBatchSize(current_batch_size)
+                decoder.setBatchSize(current_batch_size)
             encoder_hidden = encoder.initHidden()
 
-            input_length = input.size(0)
-            target_length = target.size(0)
-
-            encoder_outputs = torch.zeros(max_length, encoder.hidden_size, device=device)
+            input_length = inputs[0].size(0)
+            target_length = targets[0].size(0)
 
             loss = 0
             output = []
 
-            for ei in range(input_length):
-                encoder_output, encoder_hidden = encoder(input[ei], encoder_hidden)
-                encoder_outputs[ei] = encoder_output[0, 0]
+            encoder_outputs = torch.zeros(max_length, encoder.hidden_size, device=device)
+            encoder_output, encoder_hidden = encoder(inputs, encoder_hidden)
+            encoder_outputs = encoder_output[0, 0]
 
-            decoder_input = torch.tensor([[const.SOS_token]], device=device)
+            decoder_input = torch.tensor([[const.SOS_token] * current_batch_size], device=device)
             decoder_hidden = encoder_hidden[0]
 
             for di in range(target_length):
@@ -99,12 +120,10 @@ def test_loop(encoder, decoder, dataloader, loss_fn, max_length=const.MAX_LENGTH
                 decoder_input = topi.squeeze().detach()  # detach from history as input
 
                 output.append(topi)
-                loss += loss_fn(decoder_output, target[di])
-                if decoder_input.item() == const.EOS_token:
-                    break
+                loss += loss_fn(decoder_output, targets[:, di].flatten())
 
             test_loss += loss.item() / target_length
-            correct += int(output == input)
+            correct += (torch.cat(output).view(1, -1, current_batch_size).T == targets).all(axis=1).sum().item()
 
     test_loss /= num_batches
     correct /= size
@@ -130,18 +149,20 @@ def run():
     train_dataloader = None
 
     test_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/', only_labels=True)
-    test_dataloader = loader.DataLoader(test_data, batch_size=1, shuffle=True)
+    test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=True,
+                                        collate_fn=pad_collate.PadCollate())
 
-    # valid_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'valid/', only_labels=True)
-    # valid_dataloader = loader.DataLoader(valid_data, batch_size=1, shuffle=True)
+    valid_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'valid/', only_labels=True)
+    valid_dataloader = loader.DataLoader(valid_data, batch_size=const.BATCH_SIZE_TEST, shuffle=True,
+                                         collate_fn=pad_collate.PadCollate())
 
     # input_lang, output_lang = train_data.get_langs()
     input_lang, output_lang = test_data.get_langs()
 
-    encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE).to(device)
-    decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words).to(device)
+    encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE).to(device)
+    decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, const.BATCH_SIZE).to(device)
 
-    go_train(encoder, decoder, test_dataloader, test_dataloader)
+    go_train(encoder, decoder, test_dataloader, valid_dataloader)
 
     # torch.save(encoder.state_dict(), const.ENCODER_PATH)
     # torch.save(decoder.state_dict(), const.DECODER_PATH)
