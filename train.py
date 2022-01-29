@@ -1,9 +1,11 @@
 from __future__ import unicode_literals, print_function, division
+from datetime import datetime
 import time
 import math
 
 import torch
 import torch.nn as nn
+from matplotlib import pyplot as plt, ticker
 from torch import optim
 
 import const
@@ -41,6 +43,7 @@ def timeSince(since, percent):
 
 @print_time
 def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, max_length=const.MAX_LENGTH):
+    losses = []
     size = len(dataloader.dataset)
     current_batch_size = const.BATCH_SIZE
     encoder.setBatchSize(current_batch_size)
@@ -80,9 +83,12 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         encoder_optimizer.step()
         decoder_optimizer.step()
 
+        losses.append(loss.item())
+
         if batch % const.TRAINING_PER_BATCH_PRINT == 0:
             loss, current = loss.item(), batch * const.BATCH_SIZE
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+    return losses
 
 
 def test_loop(encoder, decoder, dataloader, loss_fn, max_length=const.MAX_LENGTH):
@@ -128,19 +134,36 @@ def test_loop(encoder, decoder, dataloader, loss_fn, max_length=const.MAX_LENGTH
     test_loss /= num_batches
     correct /= size
     print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+    return test_loss
 
 
 def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS):
+    losses_train = []
+    losses_test = []
     loss_fn = nn.NLLLoss()
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
 
     for t in range(epochs):
         print(f"Epoch {t + 1}\n-------------------------------")
-        train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer)
-        test_loop(encoder, decoder, test_dataloader, loss_fn)
+        losses_train.extend(train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer))
+        losses_test.append(test_loop(encoder, decoder, test_dataloader, loss_fn))
+    showPlot(losses_train, 'train')
+    showPlot(losses_test, 'test')
     print("Done!")
     print(f'LR: {const.LEARNING_RATE}')
+
+
+def showPlot(points, descriptor=''):
+    plt.figure()
+    fig, ax = plt.subplots()
+    # this locator puts ticks at regular intervals
+    loc = ticker.MultipleLocator(base=0.05)
+    ax.yaxis.set_major_locator(loc)
+    plt.plot(points)
+    fig.show()
+    plt.savefig(const.LOSS_PLOT_PATH + descriptor + '_loss_plot_lr_' + str(const.LEARNING_RATE).replace('.', '_') + '_'
+                + str(const.EPOCHS) + 'epochs_' + str(datetime.now()) + '.png')
 
 
 def run():
