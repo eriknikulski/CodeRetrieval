@@ -164,9 +164,9 @@ def showPlot(points, descriptor=''):
     loc = ticker.MultipleLocator(base=0.05)
     ax.yaxis.set_major_locator(loc)
     plt.plot(points)
-    fig.show()
     plt.savefig(const.LOSS_PLOT_PATH + descriptor + '_loss_plot_lr_' + str(const.LEARNING_RATE).replace('.', '_') + '_'
                 + str(const.EPOCHS) + 'epochs_' + str(datetime.now()) + '.png')
+    fig.show()
 
 
 def run():
