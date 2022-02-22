@@ -17,14 +17,16 @@ import pad_collate
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def print_time(func):
-    def inner(*args, **kwargs):
-        begin = time.time()
-        res = func(*args, **kwargs)
-        end = time.time()
-        print('Total time taken: ', int(end - begin), 's')
-        return res
-    return inner
+def print_time(prefix=''):
+    def wrapper(func):
+        def inner(*args, **kwargs):
+            begin = time.time()
+            res = func(*args, **kwargs)
+            end = time.time()
+            print(prefix + 'time taken: ', int(end - begin), 's')
+            return res
+        return inner
+    return wrapper
 
 
 def asMinutes(s):
@@ -41,7 +43,7 @@ def timeSince(since, percent):
     return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
 
 
-@print_time
+@print_time()
 def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, max_length=const.MAX_LENGTH):
     losses = []
     size = len(dataloader.dataset)
@@ -137,6 +139,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, max_length=const.MAX_LENGTH
     return test_loss
 
 
+@print_time('\nTotal ')
 def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS):
     losses_train = []
     losses_test = []
