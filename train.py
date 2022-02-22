@@ -3,12 +3,14 @@ from datetime import datetime
 import time
 import math
 
+from comet_ml import Experiment
 import torch
 import torch.nn as nn
 from matplotlib import pyplot as plt, ticker
 from torch import optim
 
 import const
+import keys
 import loader
 import model
 import pad_collate
@@ -44,7 +46,7 @@ def timeSince(since, percent):
 
 
 @print_time()
-def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, max_length=const.MAX_LENGTH):
+def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, max_length=const.MAX_LENGTH):
     losses = []
     size = len(dataloader.dataset)
     current_batch_size = const.BATCH_SIZE
@@ -85,6 +87,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         encoder_optimizer.step()
         decoder_optimizer.step()
 
+        experiment.log_metric('batch_loss', loss.item())
         losses.append(loss.item())
 
         if batch % const.TRAINING_PER_BATCH_PRINT == 0:
@@ -147,10 +150,19 @@ def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS)
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
 
-    for t in range(epochs):
-        print(f"Epoch {t + 1}\n-------------------------------")
-        losses_train.extend(train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer))
-        losses_test.append(test_loop(encoder, decoder, test_dataloader, loss_fn))
+    experiment = Experiment(
+        api_key=keys.COMET_API_KEY,
+        project_name="seq2seqtranslation",
+        workspace="eriknikulski",
+    )
+
+    experiment.log_parameters(const.HYPER_PARAMS)
+
+    with experiment.train():
+        for t in range(epochs):
+            print(f"Epoch {t + 1}\n-------------------------------")
+            losses_train.extend(train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment))
+            losses_test.append(test_loop(encoder, decoder, test_dataloader, loss_fn))
     showPlot(losses_train, 'train')
     showPlot(losses_test, 'test')
     print("Done!")

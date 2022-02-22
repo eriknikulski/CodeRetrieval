@@ -13,13 +13,25 @@ ENCODER_PATH = SAVE_PATH + 'encoder.pt'
 DECODER_PATH = SAVE_PATH + 'decoder.pt'
 SOS_token = 0
 EOS_token = 1
+
 MIN_NUM_TOKENS = 5
 MAX_LENGTH = 16
 HIDDEN_SIZE = 256
 TEACHER_FORCING_RATIO = 0
 LEARNING_RATE = 0.001
-MOMENTUM = 0
-EPOCHS = 1
-BATCH_SIZE = 2
-BATCH_SIZE_TEST = 2
-TRAINING_PER_BATCH_PRINT = 400
+MOMENTUM = 0.9
+EPOCHS = 100
+BATCH_SIZE = 10
+BATCH_SIZE_TEST = 10
+TRAINING_PER_BATCH_PRINT = 1000
+
+HYPER_PARAMS = {
+    'min_num_tokens': MIN_NUM_TOKENS,
+    'max_length': MAX_LENGTH,
+    'hidden_size': HIDDEN_SIZE,
+    'learning_rate': LEARNING_RATE,
+    'momentum': MOMENTUM,
+    'epochs': EPOCHS,
+    'batch_size': BATCH_SIZE,
+    'batch_size_test': BATCH_SIZE_TEST,
+}
