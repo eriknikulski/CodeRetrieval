@@ -7,10 +7,10 @@ import const
 ALPHABET = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
 LENGTH = 5
 N_TRAIN = 4000
-N_TEST = 1000
-N_VALID = 100
-TRAIN_PATH = const.PROJECT_PATH + 'data/synthetic/test/'
-TEST_PATH = const.PROJECT_PATH + 'data/synthetic/train/'
+N_TEST = 100000
+N_VALID = 1000
+TRAIN_PATH = const.PROJECT_PATH + 'data/synthetic/train/'
+TEST_PATH = const.PROJECT_PATH + 'data/synthetic/test/'
 VALID_PATH = const.PROJECT_PATH + 'data/synthetic/valid/'
 
 

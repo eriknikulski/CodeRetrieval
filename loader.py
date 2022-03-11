@@ -52,7 +52,7 @@ class CodeDataset(Dataset):
             (self.df.docstring_tokens.map(len) < max_tokens)]
         if only_labels:
             self.df['code_tokens'] = self.df['docstring_tokens']
-        self.df = remove_duplicate_code_df(self.df)
+        # self.df = remove_duplicate_code_df(self.df)
 
         print('building language dictionaries')
         self.input_lang = data.Lang('docstring')
