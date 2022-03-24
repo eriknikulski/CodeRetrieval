@@ -17,8 +17,8 @@ class EncoderRNN(nn.Module):
         self.lstm = nn.LSTM(hidden_size, hidden_size, 1)
 
     def forward(self, input, hidden):
-        embedded = self.embedding(input).view(input[0].size(0), self.batch_size, -1)
-        output = embedded
+        embedded = self.embedding(input).transpose(0, 1)
+        output = embedded.view(-1, self.batch_size, self.hidden_size)
         output, hidden = self.lstm(output, hidden)
         return output, hidden
 
