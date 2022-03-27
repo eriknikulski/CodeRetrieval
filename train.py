@@ -151,6 +151,9 @@ def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS)
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
 
+    encoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(encoder_optimizer)
+    decoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(decoder_optimizer)
+
     experiment = Experiment(
         api_key=keys.COMET_API_KEY,
         project_name="seq2seqtranslation",
@@ -165,6 +168,9 @@ def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS)
             losses_train.extend(train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment))
             with experiment.test():
                 losses_test.append(test_loop(encoder, decoder, test_dataloader, loss_fn, experiment))
+            encoder_scheduler.step(losses_test[-1])
+            decoder_scheduler.step(losses_test[-1])
+
     showPlot(losses_train, 'train')
     showPlot(losses_test, 'test')
     print("Done!")
