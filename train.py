@@ -65,12 +65,10 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         target_length = targets[0].size(0)
 
         encoder_hidden = encoder.initHidden()
-        encoder_outputs = torch.zeros(max_length, encoder.hidden_size, device=device)
         encoder_output, encoder_hidden = encoder(inputs, encoder_hidden)
-        encoder_outputs = encoder_output[0, 0]
 
         decoder_input = torch.tensor([[const.SOS_token] * current_batch_size], device=device)
-        decoder_hidden = encoder_hidden[0]
+        decoder_hidden = torch.cat((encoder_hidden[0][0], encoder_hidden[0][1]), dim=1).view(1, current_batch_size, -1)
 
         for di in range(target_length):
             decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
@@ -118,12 +116,10 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, max_length=cons
             loss = 0
             output = []
 
-            encoder_outputs = torch.zeros(max_length, encoder.hidden_size, device=device)
-            encoder_output, encoder_hidden = encoder(inputs, encoder_hidden)
-            encoder_outputs = encoder_output[0, 0]
+            _, encoder_hidden = encoder(inputs, encoder_hidden)
 
             decoder_input = torch.tensor([[const.SOS_token] * current_batch_size], device=device)
-            decoder_hidden = encoder_hidden[0]
+            decoder_hidden = torch.cat((encoder_hidden[0][0], encoder_hidden[0][1]), dim=1).view(1, current_batch_size, -1)
 
             for di in range(target_length):
                 decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)

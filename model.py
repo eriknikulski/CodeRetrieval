@@ -14,7 +14,7 @@ class EncoderRNN(nn.Module):
         self.batch_size = batch_size
 
         self.embedding = nn.Embedding(input_size, hidden_size)
-        self.lstm = nn.LSTM(hidden_size, hidden_size, 1)
+        self.lstm = nn.LSTM(hidden_size, hidden_size, 1, bidirectional=True if const.BIDIRECTIONAL == 2 else False)
 
     def forward(self, input, hidden):
         embedded = self.embedding(input).transpose(0, 1)
@@ -23,8 +23,8 @@ class EncoderRNN(nn.Module):
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(1, self.batch_size, self.hidden_size, device=device), \
-               torch.zeros(1, self.batch_size, self.hidden_size, device=device)
+        return torch.zeros(const.BIDIRECTIONAL * 1, self.batch_size, self.hidden_size, device=device), \
+               torch.zeros(const.BIDIRECTIONAL * 1, self.batch_size, self.hidden_size, device=device)
 
     def setBatchSize(self, batch_size):
         self.batch_size = batch_size
