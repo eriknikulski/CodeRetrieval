@@ -15,7 +15,8 @@ SOS_token = 0
 EOS_token = 1
 
 MIN_NUM_TOKENS = 5
-MAX_LENGTH = 16
+MAX_LENGTH = 8
+MIN_LENGTH = 3
 HIDDEN_SIZE = 256
 BIDIRECTIONAL = 2
 TEACHER_FORCING_RATIO = 0
@@ -29,6 +30,7 @@ TRAINING_PER_BATCH_PRINT = 1000
 HYPER_PARAMS = {
     'min_num_tokens': MIN_NUM_TOKENS,
     'max_length': MAX_LENGTH,
+    'min_length': MIN_LENGTH,
     'hidden_size': HIDDEN_SIZE,
     'learning_rate': LEARNING_RATE,
     'momentum': MOMENTUM,

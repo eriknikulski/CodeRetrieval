@@ -42,14 +42,14 @@ def read_folder(folder: RichPath):
 
 class CodeDataset(Dataset):
     def __init__(self, path, transform=data.normalizeSeq, target_transform=data.normalizeSeq,
-                 max_tokens=const.MAX_LENGTH, only_labels=False):
+                 max_tokens=const.MAX_LENGTH, min_tokens=const.MIN_LENGTH, only_labels=False):
         self.path = path
 
         self.df = read_folder(RichPath.create(path))
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
         self.df[['code_tokens']] = self.df[['code_tokens']].applymap(target_transform)
         self.df = self.df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[
-            (self.df.docstring_tokens.map(len) < max_tokens)]
+            (self.df.docstring_tokens.map(len) <= max_tokens) & (self.df.docstring_tokens.map(len) >= min_tokens)]
         if only_labels:
             self.df['code_tokens'] = self.df['docstring_tokens']
         # self.df = remove_duplicate_code_df(self.df)
