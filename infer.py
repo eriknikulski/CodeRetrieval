@@ -16,7 +16,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def evaluate(encoder, decoder, sentence, input_lang, output_lang, max_length=const.MAX_LENGTH):
     with torch.no_grad():
-        input_tensor = data.tensorFromSequence(input_lang, sentence)
+        input_tensor = input_lang.tensorFromSequence(sentence)
         input_length = input_tensor.size()[0]
         encoder_hidden = encoder.initHidden()
 
@@ -60,11 +60,11 @@ def bagSim(v1, v2):
 
 def findMostSim(output_lang, words, pairs):
     words = words[:-1]
-    vec = data.tensorFromSequence(output_lang, words)
+    vec = output_lang.tensorFromSequence(words)
     result = None
     sMax = 0
     for pair in pairs:
-        sim = bagSim(vec, data.tensorFromSequence(output_lang, pair[1]))
+        sim = bagSim(vec, output_lang.tensorFromSequence(pair[1]))
         if sim > sMax:
             sMax = sim
             result = pair[1]
