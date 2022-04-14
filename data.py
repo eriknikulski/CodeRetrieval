@@ -40,6 +40,12 @@ class Lang:
         indexes.append(const.EOS_token)
         return torch.tensor(indexes, dtype=torch.long, device=device).view(-1, 1)
 
+    def seqFromIndices(self, idcs):
+        return [self.index2word[idx] for idx in idcs]
+
+    def seqFromTensor(self, tensor):
+        return self.seqFromIndices(el.item() for el in tensor)
+
 
 def unicode2Ascii(s):
     return ''.join(

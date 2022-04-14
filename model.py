@@ -8,10 +8,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, batch_size):
+    def __init__(self, input_size, hidden_size, batch_size, lang):
         super(EncoderRNN, self).__init__()
         self.hidden_size = hidden_size
         self.batch_size = batch_size
+        self.lang = lang
 
         self.embedding = nn.Embedding(input_size, hidden_size)
         self.lstm = nn.LSTM(hidden_size, hidden_size, const.ENCODER_LAYERS,
@@ -32,10 +33,11 @@ class EncoderRNN(nn.Module):
 
 
 class DecoderRNN(nn.Module):
-    def __init__(self, hidden_size, output_size, batch_size):
+    def __init__(self, hidden_size, output_size, batch_size, lang):
         super(DecoderRNN, self).__init__()
         self.hidden_size = hidden_size
         self.batch_size = batch_size
+        self.lang = lang
 
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size)

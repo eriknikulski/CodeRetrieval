@@ -102,6 +102,8 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, max_length=cons
     encoder.setBatchSize(current_batch_size)
     decoder.setBatchSize(current_batch_size)
 
+    inputs = None
+
     with torch.no_grad():
         for inputs, targets, urls in dataloader:
             if len(inputs) < const.BATCH_SIZE_TEST:
@@ -130,10 +132,16 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, max_length=cons
                 loss += loss_fn(decoder_output, targets[:, di].flatten())
 
             test_loss += loss.item() / target_length
-            correct += (torch.cat(output).view(1, -1, current_batch_size).T == targets).all(axis=1).sum().item()
+            result = torch.cat(output).view(1, -1, current_batch_size).T
+            correct += (result == targets).all(axis=1).sum().item()
+
+    inputs = [' '.join(decoder.lang.seqFromTensor(el.flatten())) for el in inputs[:5]]
+    result = [' '.join(decoder.lang.seqFromTensor(el.flatten())) for el in result[:5]]
+    experiment.log_text(str(inputs) + ' ===> ' + str(result))
 
     test_loss /= num_batches
     experiment.log_metric('test_batch_loss', test_loss)
+    experiment.log_metric('accuracy', 100*correct)
     correct /= size
     print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
     return test_loss
