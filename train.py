@@ -179,13 +179,14 @@ def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS)
 def run():
     # train_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'train/', only_labels=True)
     # train_dataloader = loader.DataLoader(train_data, batch_size=1, shuffle=True)
-    train_dataloader = None
 
-    test_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/', only_labels=True)
+    # test_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/', only_labels=True)
+    test_data = loader.CodeDataset(const.PROJECT_PATH + const.SYNTH_PATH + 'test/', only_labels=True)
     test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=True,
                                         collate_fn=pad_collate.PadCollate())
 
-    valid_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'valid/', only_labels=True)
+    # valid_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'valid/', only_labels=True)
+    valid_data = loader.CodeDataset(const.PROJECT_PATH + const.SYNTH_PATH + 'valid/', only_labels=True)
     valid_dataloader = loader.DataLoader(valid_data, batch_size=const.BATCH_SIZE_TEST, shuffle=True,
                                          collate_fn=pad_collate.PadCollate())
 
