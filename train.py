@@ -175,22 +175,8 @@ def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS)
             encoder_scheduler.step(losses_test[-1])
             decoder_scheduler.step(losses_test[-1])
 
-    showPlot(losses_train, 'train')
-    showPlot(losses_test, 'test')
     print("Done!")
     print(f'LR: {const.LEARNING_RATE}')
-
-
-def showPlot(points, descriptor=''):
-    plt.figure()
-    fig, ax = plt.subplots()
-    # this locator puts ticks at regular intervals
-    loc = ticker.MultipleLocator(base=0.05)
-    ax.yaxis.set_major_locator(loc)
-    plt.plot(points)
-    plt.savefig(const.LOSS_PLOT_PATH + descriptor + '_loss_plot_lr_' + str(const.LEARNING_RATE).replace('.', '_') + '_'
-                + str(const.EPOCHS) + 'epochs_' + str(datetime.now()) + '.png')
-    fig.show()
 
 
 def run():
