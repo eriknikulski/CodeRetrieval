@@ -1,12 +1,10 @@
 from __future__ import unicode_literals, print_function, division
-from datetime import datetime
 import time
 import math
 
 from comet_ml import Experiment
 import torch
 import torch.nn as nn
-from matplotlib import pyplot as plt, ticker
 from torch import optim
 
 import const
@@ -15,7 +13,6 @@ import loader
 import model
 import pad_collate
 
-# plt.switch_backend('agg')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
