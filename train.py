@@ -195,9 +195,9 @@ def run():
     # input_lang, output_lang = train_data.get_langs()
     input_lang, output_lang = test_data.get_langs()
 
-    encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE).to(device)
+    encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang).to(device)
     decoder = model.DecoderRNN(const.BIDIRECTIONAL * const.ENCODER_LAYERS * const.HIDDEN_SIZE,
-                               output_lang.n_words, const.BATCH_SIZE).to(device)
+                               output_lang.n_words, const.BATCH_SIZE, output_lang).to(device)
 
     go_train(encoder, decoder, test_dataloader, valid_dataloader)
 
