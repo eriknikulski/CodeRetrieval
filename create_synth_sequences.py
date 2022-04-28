@@ -5,7 +5,7 @@ import random
 import const
 
 BASE_ALPHABET = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
-ALPHABET_LENGTH = 100
+ALPHABET_LENGTH = len(BASE_ALPHABET)
 SEQ_LENGTH = 5
 N_TRAIN = 4000
 N_TEST = 100000
