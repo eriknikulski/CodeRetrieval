@@ -199,10 +199,10 @@ def run():
 
     go_train(encoder, decoder, test_dataloader, valid_dataloader)
 
-    # torch.save(encoder.state_dict(), const.ENCODER_PATH)
-    # torch.save(decoder.state_dict(), const.DECODER_PATH)
-    #
-    # print('saved models')
+    torch.save(encoder.state_dict(), const.ENCODER_PATH)
+    torch.save(decoder.state_dict(), const.DECODER_PATH)
+
+    print('saved models')
 
 
 if __name__ == '__main__':
