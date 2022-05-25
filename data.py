@@ -4,8 +4,6 @@ import torch
 
 import const
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 class Lang:
     def __init__(self, name):
@@ -38,7 +36,7 @@ class Lang:
     def tensorFromSequence(self, seq):
         indexes = self.indexesFromSequence(seq)
         indexes.append(const.EOS_token)
-        return torch.tensor(indexes, dtype=torch.long, device=device).view(-1, 1)
+        return torch.tensor(indexes, dtype=torch.long, device=const.DEVICE).view(-1, 1)
 
     def seqFromIndices(self, idcs):
         return [self.index2word[idx] for idx in idcs]

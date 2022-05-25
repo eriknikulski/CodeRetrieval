@@ -13,8 +13,6 @@ import loader
 import model
 import pad_collate
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 def print_time(prefix=''):
     def wrapper(func):
@@ -64,7 +62,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         encoder_hidden = encoder.initHidden()
         encoder_output, encoder_hidden = encoder(inputs, encoder_hidden)
 
-        decoder_input = torch.tensor([[const.SOS_token] * current_batch_size], device=device)
+        decoder_input = torch.tensor([[const.SOS_token] * current_batch_size], device=const.DEVICE)
         decoder_hidden = torch.cat(tuple(el for el in encoder_hidden[0]), dim=1).view(1, current_batch_size, -1)
 
         for di in range(target_length):
@@ -117,7 +115,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, max_length=cons
 
             _, encoder_hidden = encoder(inputs, encoder_hidden)
 
-            decoder_input = torch.tensor([[const.SOS_token] * current_batch_size], device=device)
+            decoder_input = torch.tensor([[const.SOS_token] * current_batch_size], device=const.DEVICE)
             decoder_hidden = torch.cat(tuple(el for el in encoder_hidden[0]), dim=1).view(1, current_batch_size, -1)
 
             for di in range(target_length):
@@ -193,9 +191,9 @@ def run():
     # input_lang, output_lang = train_data.get_langs()
     input_lang, output_lang = test_data.get_langs()
 
-    encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang).to(device)
+    encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang).to(const.DEVICE)
     decoder = model.DecoderRNN(const.BIDIRECTIONAL * const.ENCODER_LAYERS * const.HIDDEN_SIZE,
-                               output_lang.n_words, const.BATCH_SIZE, output_lang).to(device)
+                               output_lang.n_words, const.BATCH_SIZE, output_lang).to(const.DEVICE)
 
     go_train(encoder, decoder, test_dataloader, valid_dataloader)
 

@@ -1,5 +1,7 @@
 import os
+import torch
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_PATH = ROOT_DIR + '/'
 SAVE_PATH = PROJECT_PATH + 'save/'
@@ -21,7 +23,7 @@ BIDIRECTIONAL = 2
 TEACHER_FORCING_RATIO = 0
 LEARNING_RATE = 0.001
 MOMENTUM = 0.9
-EPOCHS = 200
+EPOCHS = 10
 BATCH_SIZE = 64
 BATCH_SIZE_TEST = 64
 TRAINING_PER_BATCH_PRINT = 1000
