@@ -1,4 +1,5 @@
 from __future__ import unicode_literals, print_function, division
+import argparse
 import time
 import math
 
@@ -12,6 +13,10 @@ import keys
 import loader
 import model
 import pad_collate
+
+
+parser = argparse.ArgumentParser(description='ML model for sequence to sequence translation')
+parser.add_argument('-d', '--data', choices=['java', 'synth'], help='The data to be used.')
 
 
 def print_time(prefix=''):
@@ -174,28 +179,31 @@ def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS)
     print(f'LR: {const.LEARNING_RATE}')
 
 
-def run():
-    # train_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'train/', only_labels=True)
-    # train_dataloader = loader.DataLoader(train_data, batch_size=1, shuffle=True)
+def run(data):
+    if data == 'java':
+        data_path = const.JAVA_PATH
+    else:
+        data_path = const.SYNTH_PATH
 
-    # test_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/', only_labels=True)
-    test_data = loader.CodeDataset(const.PROJECT_PATH + const.SYNTH_PATH + 'test/', only_labels=True)
+    train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', only_labels=True)
+    train_dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=True,
+                                         collate_fn=pad_collate.PadCollate())
+
+    test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/', only_labels=True)
     test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=True,
                                         collate_fn=pad_collate.PadCollate())
 
-    # valid_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'valid/', only_labels=True)
-    valid_data = loader.CodeDataset(const.PROJECT_PATH + const.SYNTH_PATH + 'valid/', only_labels=True)
+    valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/', only_labels=True)
     valid_dataloader = loader.DataLoader(valid_data, batch_size=const.BATCH_SIZE_TEST, shuffle=True,
                                          collate_fn=pad_collate.PadCollate())
 
-    # input_lang, output_lang = train_data.get_langs()
-    input_lang, output_lang = test_data.get_langs()
+    input_lang, output_lang = train_data.get_langs()
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang).to(const.DEVICE)
     decoder = model.DecoderRNN(const.BIDIRECTIONAL * const.ENCODER_LAYERS * const.HIDDEN_SIZE,
                                output_lang.n_words, const.BATCH_SIZE, output_lang).to(const.DEVICE)
 
-    go_train(encoder, decoder, test_dataloader, valid_dataloader)
+    go_train(encoder, decoder, train_dataloader, test_dataloader)
 
     torch.save(encoder.state_dict(), const.ENCODER_PATH)
     torch.save(decoder.state_dict(), const.DECODER_PATH)
@@ -204,4 +212,5 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    args = parser.parse_args()
+    run(args.data)
