@@ -167,13 +167,16 @@ def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS)
     experiment.log_parameters(const.HYPER_PARAMS)
 
     with experiment.train():
-        for t in range(epochs):
-            print(f"Epoch {t + 1}\n-------------------------------")
+        for epoch in range(epochs):
+            print(f"Epoch {epoch + 1}\n-------------------------------")
             losses_train.extend(train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment))
             with experiment.test():
                 losses_test.append(test_loop(encoder, decoder, test_dataloader, loss_fn, experiment))
             encoder_scheduler.step(losses_test[-1])
             decoder_scheduler.step(losses_test[-1])
+
+            experiment.log_metric('learning_rate_encoder', encoder_optimizer.param_groups[0]['lr'], step=epoch)
+            experiment.log_metric('learning_rate_decoder', decoder_optimizer.param_groups[0]['lr'], step=epoch)
 
     print("Done!")
     print(f'LR: {const.LEARNING_RATE}')
