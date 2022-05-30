@@ -7,8 +7,8 @@ import const
 BASE_ALPHABET = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
 ALPHABET_LENGTH = len(BASE_ALPHABET)
 SEQ_LENGTH = 5
-N_TRAIN = 4000
-N_TEST = 100000
+N_TRAIN = 100000
+N_TEST = 4000
 N_VALID = 1000
 TRAIN_PATH = const.PROJECT_PATH + 'data/synthetic/train/'
 TEST_PATH = const.PROJECT_PATH + 'data/synthetic/test/'
@@ -44,7 +44,7 @@ def create():
             f.write((json.dumps(item) + '\n').encode('utf-8'))
 
     with gzip.open(VALID_PATH + 'synth_valid.jsonl.gz', 'wb') as f:
-        for item in samples[N_TEST:]:
+        for item in samples[N_TRAIN + N_TEST:]:
             f.write((json.dumps(item) + '\n').encode('utf-8'))
 
 
