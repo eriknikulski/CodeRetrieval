@@ -155,8 +155,8 @@ def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS)
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
 
-    encoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(encoder_optimizer)
-    decoder_scheduler = optim.lr_scheduler.ReduceLROnPlateau(decoder_optimizer)
+    encoder_scheduler = optim.lr_scheduler.StepLR(encoder_optimizer, step_size=10, gamma=0.1)
+    decoder_scheduler = optim.lr_scheduler.StepLR(decoder_optimizer, step_size=10, gamma=0.1)
 
     experiment = Experiment(
         api_key=keys.COMET_API_KEY,
