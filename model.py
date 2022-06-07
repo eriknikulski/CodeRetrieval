@@ -4,8 +4,6 @@ import torch.nn.functional as F
 
 import const
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 class EncoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size, batch_size, lang):
@@ -25,8 +23,8 @@ class EncoderRNN(nn.Module):
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, self.batch_size, self.hidden_size, device=device), \
-               torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, self.batch_size, self.hidden_size, device=device)
+        return torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, self.batch_size, self.hidden_size, device=const.DEVICE), \
+               torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, self.batch_size, self.hidden_size, device=const.DEVICE)
 
     def setBatchSize(self, batch_size):
         self.batch_size = batch_size
@@ -52,7 +50,7 @@ class DecoderRNN(nn.Module):
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(1, self.batch_size, self.hidden_size, device=device)
+        return torch.zeros(1, self.batch_size, self.hidden_size, device=const.DEVICE)
 
     def setBatchSize(self, batch_size):
         self.batch_size = batch_size
@@ -91,4 +89,4 @@ class AttnDecoderRNN(nn.Module):
         return output, hidden, attn_weights
 
     def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size, device=device)
+        return torch.zeros(1, 1, self.hidden_size, device=const.DEVICE)
