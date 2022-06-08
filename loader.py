@@ -41,7 +41,7 @@ def read_folder(folder: RichPath):
 
 
 class CodeDataset(Dataset):
-    def __init__(self, path, transform=data.normalizeSeq, target_transform=data.normalizeSeq,
+    def __init__(self, path, transform=data.normalizeDocstring, target_transform=data.normalizeSeq,
                  max_tokens=const.MAX_LENGTH, min_tokens=const.MIN_LENGTH, only_labels=False):
         self.path = path
 

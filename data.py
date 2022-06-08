@@ -1,5 +1,7 @@
 import re
 import unicodedata
+
+from bs4 import BeautifulSoup
 import torch
 
 import const
@@ -54,6 +56,11 @@ def unicode2Ascii(s):
 
 def normalizeSeq(s):
     return [el.strip() for el in [normalizeString(el) for el in s] if el.strip()]
+
+
+def normalizeDocstring(s):
+    s = ' '.join(s).replace('< /', '</')
+    return list(filter(None, BeautifulSoup(s).get_text().strip().split(' ')))
 
 
 def normalizeString(s):
