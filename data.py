@@ -12,7 +12,7 @@ class Lang:
         self.name = name
         self.word2index = {}
         self.word2count = {}
-        self.index2word = {const.SOS_token: 'SOS', const.EOS_token: 'EOS'}
+        self.index2word = {const.SOS_TOKEN: 'SOS', const.EOS_TOKEN: 'EOS'}
         self.n_words = 2
 
     def addSentence(self, sentence):
@@ -37,7 +37,7 @@ class Lang:
 
     def tensorFromSequence(self, seq):
         indexes = self.indexesFromSequence(seq)
-        indexes.append(const.EOS_token)
+        indexes.append(const.EOS_TOKEN)
         return torch.tensor(indexes, dtype=torch.long, device=const.DEVICE).view(-1, 1)
 
     def seqFromIndices(self, idcs):

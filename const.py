@@ -12,8 +12,8 @@ MODEL_PREDICTIONS_CSV = PROJECT_PATH + 'eval/prediction.csv'
 QUERY_CSV_PATH = PROJECT_PATH + 'eval/queries.csv'
 ENCODER_PATH = SAVE_PATH + 'encoder.pt'
 DECODER_PATH = SAVE_PATH + 'decoder.pt'
-SOS_token = 0
-EOS_token = 1
+SOS_TOKEN = 0
+EOS_TOKEN = 1
 NUMBER_TOKEN = '[number]'
 
 MIN_NUM_TOKENS = 5

@@ -67,7 +67,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         encoder_hidden = encoder.initHidden()
         encoder_output, encoder_hidden = encoder(inputs, encoder_hidden)
 
-        decoder_input = torch.tensor([[const.SOS_token] * current_batch_size], device=const.DEVICE)
+        decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=const.DEVICE)
         decoder_hidden = torch.cat(tuple(el for el in encoder_hidden[0]), dim=1).view(1, current_batch_size, -1)
 
         for di in range(target_length):
@@ -120,7 +120,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
 
             _, encoder_hidden = encoder(inputs, encoder_hidden)
 
-            decoder_input = torch.tensor([[const.SOS_token] * current_batch_size], device=const.DEVICE)
+            decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=const.DEVICE)
             decoder_hidden = torch.cat(tuple(el for el in encoder_hidden[0]), dim=1).view(1, current_batch_size, -1)
 
             for di in range(target_length):
