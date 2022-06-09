@@ -137,7 +137,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
 
     inputs = [' '.join(decoder.lang.seqFromTensor(el.flatten())) for el in inputs[:5]]
     result = [' '.join(decoder.lang.seqFromTensor(el.flatten())) for el in result[:5]]
-    experiment.log_text(epoch_num + str(inputs) + ' ===> ' + str(result))
+    experiment.log_text(str(epoch_num) + str(inputs) + ' ===> ' + str(result))
 
     test_loss /= num_batches
     experiment.log_metric('test_batch_loss', test_loss, step=epoch_num)
