@@ -30,6 +30,8 @@ BATCH_SIZE_TEST = 64
 TRAINING_PER_BATCH_PRINT = 1000
 ENCODER_LAYERS = 2
 DECODER_LAYERS = 1
+LR_STEP_SIZE = 10
+LR_GAMMA = 0.1
 
 HYPER_PARAMS = {
     'encoder_layers': ENCODER_LAYERS,
@@ -43,4 +45,6 @@ HYPER_PARAMS = {
     'epochs': EPOCHS,
     'batch_size': BATCH_SIZE,
     'batch_size_test': BATCH_SIZE_TEST,
+    'lr_step_size': LR_STEP_SIZE,
+    'lr_gamma': LR_GAMMA,
 }
