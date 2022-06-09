@@ -94,7 +94,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
     return losses
 
 
-def test_loop(encoder, decoder, dataloader, loss_fn, experiment, max_length=const.MAX_LENGTH):
+def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
     test_loss, correct = 0, 0
@@ -137,7 +137,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, max_length=cons
 
     inputs = [' '.join(decoder.lang.seqFromTensor(el.flatten())) for el in inputs[:5]]
     result = [' '.join(decoder.lang.seqFromTensor(el.flatten())) for el in result[:5]]
-    experiment.log_text(str(inputs) + ' ===> ' + str(result))
+    experiment.log_text(epoch_num + str(inputs) + ' ===> ' + str(result))
 
     test_loss /= num_batches
     experiment.log_metric('test_batch_loss', test_loss)
@@ -171,7 +171,7 @@ def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS)
             print(f"Epoch {epoch + 1}\n-------------------------------")
             losses_train.extend(train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment))
             with experiment.test():
-                losses_test.append(test_loop(encoder, decoder, test_dataloader, loss_fn, experiment))
+                losses_test.append(test_loop(encoder, decoder, test_dataloader, loss_fn, experiment, epoch + 1))
             encoder_scheduler.step(losses_test[-1])
             decoder_scheduler.step(losses_test[-1])
 
