@@ -14,6 +14,7 @@ ENCODER_PATH = SAVE_PATH + 'encoder.pt'
 DECODER_PATH = SAVE_PATH + 'decoder.pt'
 SOS_token = 0
 EOS_token = 1
+NUMBER_TOKEN = '[number]'
 
 MIN_NUM_TOKENS = 5
 MAX_LENGTH = 20

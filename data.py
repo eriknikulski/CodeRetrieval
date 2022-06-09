@@ -59,8 +59,15 @@ def normalizeSeq(s):
 
 
 def normalizeDocstring(s):
-    s = ' '.join(s).replace('< /', '</')
-    return list(filter(None, BeautifulSoup(s).get_text().strip().split(' ')))
+    s = ' '.join(s)
+    s = s.encode('ascii', 'ignore').decode('ascii')
+    s = s.replace('< /', '</')
+    s = BeautifulSoup(s).get_text().strip()
+    s = re.sub(r'{\s?@\w+\s(\S*)\s?}', r'\1', s)
+    s = re.sub(r'\s[^\w\s](\w+)', r'\1', s)
+    s = re.sub(r'\d+', const.NUMBER_TOKEN, s)
+    s = list(filter(None, s.split(' ')))
+    return s
 
 
 def normalizeString(s):
