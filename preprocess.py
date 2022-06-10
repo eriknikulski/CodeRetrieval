@@ -52,22 +52,29 @@ def run(args):
     valid_data.df[['docstring_tokens']] = valid_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
 
     print('Working on dataframe...')
+    print('Removing duplicates...')
     train_data.remove_duplicates()
     test_data.remove_duplicates()
     valid_data.remove_duplicates()
 
+    print('Building languages...')
     train_data.build_language()
     test_data.build_language()
     valid_data.build_language()
 
+    print('Converting to tensors...')
     train_data.to_tensors()
     test_data.to_tensors()
     valid_data.to_tensors()
 
-    if not const.LABELS_ONLY:
+    if const.LABELS_ONLY:
         train_data.df['code_tokens'] = train_data.df['docstring_tokens']
         test_data.df['code_tokens'] = test_data.df['docstring_tokens']
         valid_data.df['code_tokens'] = valid_data.df['docstring_tokens']
+
+    train_data.df = train_data.df.drop_duplicates(subset=['docstring_tokens'])
+    test_data.df = test_data.df.drop_duplicates(subset=['docstring_tokens'])
+    valid_data.df = valid_data.df.drop_duplicates(subset=['docstring_tokens'])
 
     print('Saving...')
     pickle.dump(train_data, open(const.TRAIN_DATA_SAVE_PATH, 'wb'))
