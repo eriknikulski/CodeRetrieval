@@ -195,11 +195,11 @@ def run(args):
         const.LABELS_ONLY = True
 
     if args.load_data:
-        train_file = open(const.TRAIN_DATA_SAVE_PATH, 'r')
+        train_file = open(const.TRAIN_DATA_SAVE_PATH, 'rb')
         train_data = pickle.load(train_file)
-        test_file = open(const.TEST_DATA_SAVE_PATH, 'r')
+        test_file = open(const.TEST_DATA_SAVE_PATH, 'rb')
         test_data = pickle.load(test_file)
-        valid_file = open(const.VALID_DATA_SAVE_PATH, 'r')
+        valid_file = open(const.VALID_DATA_SAVE_PATH, 'rb')
         valid_data = pickle.load(valid_file)
     else:
         train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', labels_only=const.LABELS_ONLY)

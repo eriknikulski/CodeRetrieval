@@ -70,9 +70,9 @@ def run(args):
         valid_data.df['code_tokens'] = valid_data.df['docstring_tokens']
 
     print('Saving...')
-    pickle.dump(train_data, const.TRAIN_DATA_SAVE_PATH)
-    pickle.dump(test_data, const.TEST_DATA_SAVE_PATH)
-    pickle.dump(valid_data, const.VALID_DATA_SAVE_PATH)
+    pickle.dump(train_data, open(const.TRAIN_DATA_SAVE_PATH, 'wb'))
+    pickle.dump(test_data, open(const.TEST_DATA_SAVE_PATH, 'wb'))
+    pickle.dump(valid_data, open(const.VALID_DATA_SAVE_PATH, 'wb'))
 
 
 if __name__ == '__main__':
