@@ -42,7 +42,8 @@ def read_folder(folder: RichPath):
 
 class CodeDataset(Dataset):
     def __init__(self, path, transform=data.normalizeDocstring, target_transform=data.normalizeSeq,
-                 max_tokens=const.MAX_LENGTH, min_tokens=const.MIN_LENGTH, labels_only=False):
+                 max_tokens=const.MAX_LENGTH, min_tokens=const.MIN_LENGTH, labels_only=False, to_tensors=True,
+                 remove_duplicates=True):
         self.path = path
 
         self.df = read_folder(RichPath.create(path))
@@ -52,7 +53,8 @@ class CodeDataset(Dataset):
             (self.df.docstring_tokens.map(len) <= max_tokens) & (self.df.docstring_tokens.map(len) >= min_tokens)]
         if labels_only:
             self.df['code_tokens'] = self.df['docstring_tokens']
-        # self.df = remove_duplicate_code_df(self.df)
+        if remove_duplicates:
+            self.df = remove_duplicate_code_df(self.df)
 
         print('building language dictionaries')
         self.input_lang = data.Lang('docstring')
@@ -61,11 +63,12 @@ class CodeDataset(Dataset):
             self.input_lang.addSequence(pair.docstring_tokens)
             self.output_lang.addSequence(pair.code_tokens)
 
-        print('converting sequences to tensors')
-        self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(
-            lambda x: self.input_lang.tensorFromSequence(x))
-        self.df[['code_tokens']] = self.df[['code_tokens']].applymap(
-            lambda x: self.output_lang.tensorFromSequence(x))
+        if to_tensors:
+            print('converting sequences to tensors')
+            self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(
+                lambda x: self.input_lang.tensorFromSequence(x))
+            self.df[['code_tokens']] = self.df[['code_tokens']].applymap(
+                lambda x: self.output_lang.tensorFromSequence(x))
 
         print(f'{self.__len__()} elements loaded!\n')
 
