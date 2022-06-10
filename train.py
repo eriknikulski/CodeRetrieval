@@ -17,6 +17,7 @@ import pad_collate
 
 parser = argparse.ArgumentParser(description='ML model for sequence to sequence translation')
 parser.add_argument('-d', '--data', choices=['java', 'synth'], help='The data to be used.')
+parser.add_argument('-lo', '--labels-only', action='store_true', default=False, help='The data to be used.')
 
 
 def print_time(prefix=''):
@@ -182,21 +183,24 @@ def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS)
     print(f'LR: {const.LEARNING_RATE}')
 
 
-def run(data):
-    if data == 'java':
+def run(args):
+    if args.data == 'java':
         data_path = const.JAVA_PATH
     else:
         data_path = const.SYNTH_PATH
 
-    train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', only_labels=True)
+    if args.labels_only:
+        const.LABELS_ONLY = True
+
+    train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', labels_only=const.LABELS_ONLY)
     train_dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=True,
                                          collate_fn=pad_collate.PadCollate())
 
-    test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/', only_labels=True)
+    test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/', labels_only=const.LABELS_ONLY)
     test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=True,
                                         collate_fn=pad_collate.PadCollate())
 
-    valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/', only_labels=True)
+    valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/', labels_only=const.LABELS_ONLY)
     valid_dataloader = loader.DataLoader(valid_data, batch_size=const.BATCH_SIZE_TEST, shuffle=True,
                                          collate_fn=pad_collate.PadCollate())
 
@@ -216,4 +220,4 @@ def run(data):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    run(args.data)
+    run(args)
