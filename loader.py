@@ -42,9 +42,11 @@ def read_folder(folder: RichPath):
 
 class CodeDataset(Dataset):
     def __init__(self, path, transform=data.normalizeDocstring, target_transform=data.normalizeSeq,
-                 max_tokens=const.MAX_LENGTH, min_tokens=const.MIN_LENGTH, labels_only=False, to_tensors=True,
-                 remove_duplicates=True):
+                 max_tokens=const.MAX_LENGTH, min_tokens=const.MIN_LENGTH, labels_only=False, build_language=True,
+                 to_tensors=True, remove_duplicates=True):
         self.path = path
+        self.input_lang = None
+        self.output_lang = None
 
         self.df = read_folder(RichPath.create(path))
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
@@ -54,21 +56,13 @@ class CodeDataset(Dataset):
         if labels_only:
             self.df['code_tokens'] = self.df['docstring_tokens']
         if remove_duplicates:
-            self.df = remove_duplicate_code_df(self.df)
+            self.remove_duplicates()
 
-        print('building language dictionaries')
-        self.input_lang = data.Lang('docstring')
-        self.output_lang = data.Lang('code')
-        for pair in self.df.itertuples():
-            self.input_lang.addSequence(pair.docstring_tokens)
-            self.output_lang.addSequence(pair.code_tokens)
+        if build_language:
+            self.build_language()
 
         if to_tensors:
-            print('converting sequences to tensors')
-            self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(
-                lambda x: self.input_lang.tensorFromSequence(x))
-            self.df[['code_tokens']] = self.df[['code_tokens']].applymap(
-                lambda x: self.output_lang.tensorFromSequence(x))
+            self.to_tensors()
 
         print(f'{self.__len__()} elements loaded!\n')
 
@@ -80,6 +74,25 @@ class CodeDataset(Dataset):
 
     def get_langs(self):
         return self.input_lang, self.output_lang
+
+    def remove_duplicates(self):
+        self.df = remove_duplicate_code_df(self.df)
+
+    def build_language(self):
+        print('building language dictionaries')
+        self.input_lang = data.Lang('docstring')
+        self.output_lang = data.Lang('code')
+        for pair in self.df.itertuples():
+            self.input_lang.addSequence(pair.docstring_tokens)
+            self.output_lang.addSequence(pair.code_tokens)
+
+    def to_tensors(self):
+        assert self.input_lang and self.output_lang
+        print('converting sequences to tensors')
+        self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(
+            lambda x: self.input_lang.tensorFromSequence(x))
+        self.df[['code_tokens']] = self.df[['code_tokens']].applymap(
+            lambda x: self.output_lang.tensorFromSequence(x))
 
 
 if __name__ == "__main__":
