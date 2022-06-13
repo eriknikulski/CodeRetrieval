@@ -47,6 +47,7 @@ class CodeDataset(Dataset):
         self.path = path
         self.input_lang = None
         self.output_lang = None
+        self.labels_only = labels_only
 
         self.df = read_folder(RichPath.create(path))
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
@@ -84,7 +85,8 @@ class CodeDataset(Dataset):
         self.output_lang = data.Lang('code')
         for pair in self.df.itertuples():
             self.input_lang.addSequence(pair.docstring_tokens)
-            self.output_lang.addSequence(pair.code_tokens)
+            if not self.labels_only:
+                self.output_lang.addSequence(pair.code_tokens)
 
     def to_tensors(self):
         assert self.input_lang and self.output_lang
