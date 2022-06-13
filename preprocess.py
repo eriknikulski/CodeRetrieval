@@ -38,6 +38,10 @@ def run(args):
     train_file = codecs.open(const.PREPROCESS_TRAIN_PATH, 'w', encoding='utf-8')
     for text in train_data.df['docstring_tokens']:
         train_file.write(f'{" ".join(text)}\n')
+    for text in test_data.df['docstring_tokens']:
+        train_file.write(f'{" ".join(text)}\n')
+    for text in valid_data.df['docstring_tokens']:
+        train_file.write(f'{" ".join(text)}\n')
 
     print('Creating codes file...')
     train_file = codecs.open(const.PREPROCESS_TRAIN_PATH, encoding='utf-8')
