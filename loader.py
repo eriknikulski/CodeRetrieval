@@ -85,8 +85,7 @@ class CodeDataset(Dataset):
         self.output_lang = data.Lang('code')
         for pair in self.df.itertuples():
             self.input_lang.addSequence(pair.docstring_tokens)
-            if not self.labels_only:
-                self.output_lang.addSequence(pair.code_tokens)
+            self.output_lang.addSequence(pair.code_tokens)
 
     def to_tensors(self):
         assert self.input_lang and self.output_lang
