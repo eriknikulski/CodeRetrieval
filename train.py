@@ -20,6 +20,7 @@ parser = argparse.ArgumentParser(description='ML model for sequence to sequence 
 parser.add_argument('-d', '--data', choices=['java', 'synth'], help='The data to be used.')
 parser.add_argument('-lo', '--labels-only', action='store_true', default=False, help='The data to be used.')
 parser.add_argument('-ld', '--load-data', action='store_true', default=False, help='Load preprocessed data.')
+parser.add_argument('-kd', '--keep-duplicates', action='store_true', default=False, help='Do not remove duplicates in data.')
 
 
 def print_time(prefix=''):
@@ -194,6 +195,11 @@ def run(args):
     if args.labels_only:
         const.LABELS_ONLY = True
 
+    if args.keep_duplicates:
+        remove_duplicates = False
+    else:
+        remove_duplicates = True
+
     if args.load_data:
         train_file = open(const.TRAIN_DATA_SAVE_PATH, 'rb')
         train_data = pickle.load(train_file)
@@ -202,9 +208,12 @@ def run(args):
         valid_file = open(const.VALID_DATA_SAVE_PATH, 'rb')
         valid_data = pickle.load(valid_file)
     else:
-        train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', labels_only=const.LABELS_ONLY)
-        test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/', labels_only=const.LABELS_ONLY)
-        valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/', labels_only=const.LABELS_ONLY)
+        train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/',
+                                        labels_only=const.LABELS_ONLY, remove_duplicates=remove_duplicates)
+        test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/',
+                                       labels_only=const.LABELS_ONLY, remove_duplicates=remove_duplicates)
+        valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/',
+                                        labels_only=const.LABELS_ONLY, remove_duplicates=remove_duplicates)
 
     train_dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=True,
                                          collate_fn=pad_collate.PadCollate())

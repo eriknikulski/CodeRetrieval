@@ -83,17 +83,15 @@ class CodeDataset(Dataset):
         print('building language dictionaries')
         self.input_lang = data.Lang('docstring')
         self.output_lang = data.Lang('code')
-        for pair in self.df.itertuples():
-            self.input_lang.addSequence(pair.docstring_tokens)
-            self.output_lang.addSequence(pair.code_tokens)
+
+        self.df[['docstring_tokens']].applymap(self.input_lang.addSequence)
+        self.df[['code_tokens']].applymap(self.output_lang.addSequence)
 
     def to_tensors(self):
         assert self.input_lang and self.output_lang
         print('converting sequences to tensors')
-        self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(
-            lambda x: self.input_lang.tensorFromSequence(x))
-        self.df[['code_tokens']] = self.df[['code_tokens']].applymap(
-            lambda x: self.output_lang.tensorFromSequence(x))
+        self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(self.input_lang.tensorFromSequence)
+        self.df[['code_tokens']] = self.df[['code_tokens']].applymap(self.output_lang.tensorFromSequence)
 
 
 if __name__ == "__main__":

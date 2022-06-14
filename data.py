@@ -59,7 +59,7 @@ def normalizeSeq(s):
 
 
 def normalizeDocstring(s):
-    s = ' '.join(s)
+    s = ' '.join(s).lower()
     s = s.encode('ascii', 'ignore').decode('ascii')
     s = s.replace('< /', '</')
     s = BeautifulSoup(s).get_text().strip()
