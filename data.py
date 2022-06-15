@@ -59,6 +59,8 @@ def normalizeSeq(s):
 
 
 def normalizeDocstring(s):
+    if s[-1] == '.':
+        s = s[:-1]
     s = ' '.join(s).lower()
     s = s.encode('ascii', 'ignore').decode('ascii')
     s = s.replace('< /', '</')
