@@ -48,6 +48,7 @@ class CodeDataset(Dataset):
         self.input_lang = None
         self.output_lang = None
         self.labels_only = labels_only
+        self.df_np = None
 
         self.df = read_folder(RichPath.create(path))
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
@@ -71,7 +72,7 @@ class CodeDataset(Dataset):
         return len(self.df)
 
     def __getitem__(self, idx):
-        return self.df.to_numpy()[idx][:3].tolist()
+        return self.df_np[idx]
 
     def get_langs(self):
         return self.input_lang, self.output_lang
@@ -92,6 +93,11 @@ class CodeDataset(Dataset):
         print('converting sequences to tensors')
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(self.input_lang.tensorFromSequence)
         self.df[['code_tokens']] = self.df[['code_tokens']].applymap(self.output_lang.tensorFromSequence)
+        self.to_numpy()
+
+    def to_numpy(self):
+        print('convert dataframe to numpy')
+        self.df_np = self.df.to_numpy()[:,:3].tolist()
 
 
 if __name__ == "__main__":
