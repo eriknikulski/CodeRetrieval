@@ -137,12 +137,13 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
                 loss += loss_fn(decoder_output, targets[:, di].flatten())
 
             test_loss += loss.item() / target_length
-            result = torch.cat(output).view(1, -1, current_batch_size).T
-            correct += (result == targets).all(axis=1).sum().item()
+            results = torch.cat(output).view(1, -1, current_batch_size).T
+            correct += (results == targets).all(axis=1).sum().item()
 
     inputs = [' '.join(decoder.lang.seqFromTensor(el.flatten())) for el in inputs[:5]]
-    result = [' '.join(decoder.lang.seqFromTensor(el.flatten())) for el in result[:5]]
-    experiment.log_text(str(epoch_num) + str(inputs) + ' ===> ' + str(result))
+    results = [' '.join(decoder.lang.seqFromTensor(el.flatten())) for el in results[:5]]
+    experiment.log_text(str(epoch_num) + '\n' +
+                        '\n'.join(str(input) + '  ====>  ' + str(result) for input, result in zip(inputs, results)))
 
     test_loss /= num_batches
     experiment.log_metric('test_batch_loss', test_loss, step=epoch_num)
