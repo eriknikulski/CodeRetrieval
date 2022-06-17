@@ -5,6 +5,7 @@ import pickle
 from subword_nmt import subword_nmt
 
 import const
+import data
 import loader
 
 parser = argparse.ArgumentParser(description='ML model for sequence to sequence translation')
@@ -67,9 +68,11 @@ def run(args):
     valid_data.remove_duplicates()
 
     print('Building languages...')
-    train_data.build_language()
-    test_data.build_language()
-    valid_data.build_language()
+    input_lang = data.Lang('docstring')
+    output_lang = data.Lang('code')
+    train_data.build_language(languages=[input_lang, output_lang])
+    test_data.build_language(languages=[input_lang, output_lang])
+    valid_data.build_language(languages=[input_lang, output_lang])
 
     print('Converting to tensors...')
     train_data.to_tensors()

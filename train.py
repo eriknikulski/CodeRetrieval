@@ -10,6 +10,7 @@ import torch.nn as nn
 from torch import optim
 
 import const
+import data
 import keys
 import loader
 import model
@@ -207,13 +208,20 @@ def run(args):
         test_data = pickle.load(test_file)
         valid_file = open(const.VALID_DATA_SAVE_PATH, 'rb')
         valid_data = pickle.load(valid_file)
+
+        input_lang, output_lang = train_data.get_langs()
     else:
+        input_lang = data.Lang('docstring')
+        output_lang = data.Lang('code')
         train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/',
-                                        labels_only=const.LABELS_ONLY, remove_duplicates=remove_duplicates)
+                                        labels_only=const.LABELS_ONLY, languages=[input_lang, output_lang],
+                                        remove_duplicates=remove_duplicates)
         test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/',
-                                       labels_only=const.LABELS_ONLY, remove_duplicates=remove_duplicates)
+                                       labels_only=const.LABELS_ONLY, languages=[input_lang, output_lang],
+                                       remove_duplicates=remove_duplicates)
         valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/',
-                                        labels_only=const.LABELS_ONLY, remove_duplicates=remove_duplicates)
+                                        labels_only=const.LABELS_ONLY, languages=[input_lang, output_lang],
+                                        remove_duplicates=remove_duplicates)
 
     train_dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=True,
                                          collate_fn=pad_collate.PadCollate())
@@ -221,8 +229,6 @@ def run(args):
                                         collate_fn=pad_collate.PadCollate())
     valid_dataloader = loader.DataLoader(valid_data, batch_size=const.BATCH_SIZE_TEST, shuffle=True,
                                          collate_fn=pad_collate.PadCollate())
-
-    input_lang, output_lang = train_data.get_langs()
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang).to(const.DEVICE)
     decoder = model.DecoderRNN(const.BIDIRECTIONAL * const.ENCODER_LAYERS * const.HIDDEN_SIZE,

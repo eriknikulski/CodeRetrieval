@@ -42,11 +42,14 @@ def read_folder(folder: RichPath):
 
 class CodeDataset(Dataset):
     def __init__(self, path, transform=data.normalizeDocstring, target_transform=data.normalizeSeq,
-                 max_tokens=const.MAX_LENGTH, min_tokens=const.MIN_LENGTH, labels_only=False, build_language=True,
+                 max_tokens=const.MAX_LENGTH, min_tokens=const.MIN_LENGTH, labels_only=False,
+                 languages=None, build_language=True,
                  to_tensors=True, remove_duplicates=True):
         self.path = path
         self.input_lang = None
         self.output_lang = None
+        if languages:
+            self.set_languages(languages)
         self.labels_only = labels_only
         self.df_np = None
 
@@ -80,13 +83,17 @@ class CodeDataset(Dataset):
     def remove_duplicates(self):
         self.df = remove_duplicate_code_df(self.df)
 
-    def build_language(self):
+    def build_language(self, languages=None):
         print('building language dictionaries')
-        self.input_lang = data.Lang('docstring')
-        self.output_lang = data.Lang('code')
+        if languages:
+            self.set_languages(languages)
 
         self.df[['docstring_tokens']].applymap(self.input_lang.addSequence)
         self.df[['code_tokens']].applymap(self.output_lang.addSequence)
+
+    def set_languages(self, languages):
+        self.input_lang = languages[0]
+        self.output_lang = languages[1]
 
     def to_tensors(self):
         assert self.input_lang and self.output_lang
