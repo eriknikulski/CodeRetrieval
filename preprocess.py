@@ -79,15 +79,6 @@ def run(args):
     test_data.to_tensors()
     valid_data.to_tensors()
 
-    if const.LABELS_ONLY:
-        train_data.df['code_tokens'] = train_data.df['docstring_tokens']
-        test_data.df['code_tokens'] = test_data.df['docstring_tokens']
-        valid_data.df['code_tokens'] = valid_data.df['docstring_tokens']
-
-    train_data.df = train_data.df.drop_duplicates(subset=['docstring_tokens'])
-    test_data.df = test_data.df.drop_duplicates(subset=['docstring_tokens'])
-    valid_data.df = valid_data.df.drop_duplicates(subset=['docstring_tokens'])
-
     print('Saving...')
     pickle.dump(train_data, open(const.TRAIN_DATA_SAVE_PATH, 'wb'))
     pickle.dump(test_data, open(const.TEST_DATA_SAVE_PATH, 'wb'))
