@@ -2,6 +2,7 @@ import argparse
 import codecs
 import pickle
 
+import pandas as pd
 from subword_nmt import subword_nmt
 
 import const
@@ -79,12 +80,15 @@ def run(args):
     test_data.to_tensors()
     valid_data.to_tensors()
 
+    df_all = pd.concat([train_data.df, test_data.df, valid_data.df])
+
     print('Saving...')
     pickle.dump(train_data, open(const.TRAIN_DATA_SAVE_PATH, 'wb'))
     pickle.dump(test_data, open(const.TEST_DATA_SAVE_PATH, 'wb'))
     pickle.dump(valid_data, open(const.VALID_DATA_SAVE_PATH, 'wb'))
     pickle.dump(input_lang, open(const.INPUT_LANG_SAVE_PATH, 'wb'))
     pickle.dump(output_lang, open(const.OUTPUT_LANG_SAVE_PATH, 'wb'))
+    df_all.to_pickle(const.ALL_DATA_DF_SAVE_PATH)
 
 
 if __name__ == '__main__':
