@@ -210,7 +210,10 @@ def run(args):
         valid_file = open(const.VALID_DATA_SAVE_PATH, 'rb')
         valid_data = pickle.load(valid_file)
 
-        input_lang, output_lang = train_data.get_langs()
+        input_lang_file = open(const.INPUT_LANG_SAVE_PATH, 'rb')
+        input_lang = pickle.load(input_lang_file)
+        output_lang_file = open(const.OUTPUT_LANG_SAVE_PATH, 'rb')
+        output_lang = pickle.load(output_lang_file)
     else:
         input_lang = data.Lang('docstring')
         output_lang = data.Lang('code')

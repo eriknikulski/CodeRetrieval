@@ -83,6 +83,8 @@ def run(args):
     pickle.dump(train_data, open(const.TRAIN_DATA_SAVE_PATH, 'wb'))
     pickle.dump(test_data, open(const.TEST_DATA_SAVE_PATH, 'wb'))
     pickle.dump(valid_data, open(const.VALID_DATA_SAVE_PATH, 'wb'))
+    pickle.dump(input_lang, open(const.INPUT_LANG_SAVE_PATH, 'wb'))
+    pickle.dump(output_lang, open(const.OUTPUT_LANG_SAVE_PATH, 'wb'))
 
 
 if __name__ == '__main__':
