@@ -51,7 +51,7 @@ def timeSince(since, percent):
 
 
 @print_time()
-def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, max_length=const.MAX_LENGTH):
+def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch_num):
     losses = []
     size = len(dataloader.dataset)
     current_batch_size = const.BATCH_SIZE
@@ -90,7 +90,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         encoder_optimizer.step()
         decoder_optimizer.step()
 
-        experiment.log_metric('batch_loss', loss.item())
+        experiment.log_metric('batch_loss', loss.item(), step=epoch_num * size + batch)
         losses.append(loss.item())
 
         if batch % const.TRAINING_PER_BATCH_PRINT == 0:
@@ -175,9 +175,10 @@ def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS)
     with experiment.train():
         for epoch in range(epochs):
             print(f"Epoch {epoch + 1}\n-------------------------------")
-            losses_train.extend(train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment))
+            losses_train.extend(train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer,
+                                           experiment, epoch))
             with experiment.test():
-                losses_test.append(test_loop(encoder, decoder, test_dataloader, loss_fn, experiment, epoch + 1))
+                losses_test.append(test_loop(encoder, decoder, test_dataloader, loss_fn, experiment, epoch))
             encoder_scheduler.step()
             decoder_scheduler.step()
 
