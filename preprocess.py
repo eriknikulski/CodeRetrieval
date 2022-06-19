@@ -63,10 +63,11 @@ def run(args):
         test_data.df['code_tokens'] = test_data.df['docstring_tokens']
         valid_data.df['code_tokens'] = valid_data.df['docstring_tokens']
 
-    print('Removing duplicates...')
-    train_data.remove_duplicates()
-    test_data.remove_duplicates()
-    valid_data.remove_duplicates()
+    if remove_duplicates:
+        print('Removing duplicates...')
+        train_data.remove_duplicates()
+        test_data.remove_duplicates()
+        valid_data.remove_duplicates()
 
     print('Building languages...')
     input_lang = data.Lang('docstring')
