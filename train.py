@@ -90,7 +90,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         encoder_optimizer.step()
         decoder_optimizer.step()
 
-        experiment.log_metric('batch_loss', loss.item(), step=epoch_num * size + batch)
+        experiment.log_metric('batch_loss', loss.item(), step=epoch_num * size / const.BATCH_SIZE + batch)
         losses.append(loss.item())
 
         if batch % const.TRAINING_PER_BATCH_PRINT == 0:
