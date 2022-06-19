@@ -55,9 +55,7 @@ class CodeDataset(Dataset):
 
         self.df = read_folder(RichPath.create(path))
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
-        print(self.df[['code_tokens']])
         self.df[['code_tokens']] = self.df[['code_tokens']].applymap(target_transform)
-        print(self.df[['code_tokens']])
         self.df = self.df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[
             (self.df.docstring_tokens.map(len) <= max_tokens) & (self.df.docstring_tokens.map(len) >= min_tokens)]
         if labels_only:
