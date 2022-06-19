@@ -41,7 +41,7 @@ def read_folder(folder: RichPath):
 
 
 class CodeDataset(Dataset):
-    def __init__(self, path, transform=data.normalizeDocstring, target_transform=data.normalizeSeq,
+    def __init__(self, path, transform=data.normalizeDocstring, target_transform=lambda x: x,
                  max_tokens=const.MAX_LENGTH, min_tokens=const.MIN_LENGTH, labels_only=False,
                  languages=None, build_language=True,
                  to_tensors=True, remove_duplicates=True):
@@ -55,7 +55,9 @@ class CodeDataset(Dataset):
 
         self.df = read_folder(RichPath.create(path))
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
+        print(self.df[['code_tokens']])
         self.df[['code_tokens']] = self.df[['code_tokens']].applymap(target_transform)
+        print(self.df[['code_tokens']])
         self.df = self.df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[
             (self.df.docstring_tokens.map(len) <= max_tokens) & (self.df.docstring_tokens.map(len) >= min_tokens)]
         if labels_only:
@@ -108,7 +110,9 @@ class CodeDataset(Dataset):
 
 
 if __name__ == "__main__":
-    test_data = CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/')
+    input_lang = data.Lang('docstring')
+    output_lang = data.Lang('code')
+    test_data = CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/', languages=[input_lang, output_lang])
     test_dataloader = DataLoader(test_data, batch_size=1, shuffle=True)
 
     test_labels, test_features, url = next(iter(test_dataloader))
