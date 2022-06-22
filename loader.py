@@ -42,9 +42,9 @@ def read_folder(folder: RichPath):
 
 class CodeDataset(Dataset):
     def __init__(self, path, transform=data.normalizeDocstring, target_transform=lambda x: x,
-                 max_tokens=const.MAX_LENGTH, min_tokens=const.MIN_LENGTH, labels_only=False,
-                 languages=None, build_language=True,
-                 to_tensors=True, remove_duplicates=True):
+                 min_tokens_docstring=const.MIN_LENGTH_DOCSTRING, max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
+                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE,
+                 labels_only=False, languages=None, build_language=True, to_tensors=True, remove_duplicates=True):
         self.path = path
         self.input_lang = None
         self.output_lang = None
@@ -57,7 +57,11 @@ class CodeDataset(Dataset):
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
         self.df[['code_tokens']] = self.df[['code_tokens']].applymap(target_transform)
         self.df = self.df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[
-            (self.df.docstring_tokens.map(len) <= max_tokens) & (self.df.docstring_tokens.map(len) >= min_tokens)]
+            (self.df.docstring_tokens.map(len) <= max_tokens_docstring) &
+            (self.df.docstring_tokens.map(len) >= min_tokens_docstring)]
+        self.df = self.df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[
+            (self.df.code_tokens.map(len) <= max_tokens_code) &
+            (self.df.code_tokens.map(len) >= min_tokens_code)]
         if labels_only:
             self.df['code_tokens'] = self.df['docstring_tokens']
         if remove_duplicates:

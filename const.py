@@ -27,8 +27,10 @@ LABELS_ONLY = False
 PREPROCESS_VOCAB_SIZE = 20000
 
 MIN_NUM_TOKENS = 5
-MAX_LENGTH = 20
-MIN_LENGTH = 3
+MIN_LENGTH_DOCSTRING = 3
+MAX_LENGTH_DOCSTRING = 20
+MIN_LENGTH_CODE = 20
+MAX_LENGTH_CODE = 500
 HIDDEN_SIZE = 256
 BIDIRECTIONAL = 2
 TEACHER_FORCING_RATIO = 0
@@ -47,8 +49,10 @@ HYPER_PARAMS = {
     'encoder_layers': ENCODER_LAYERS,
     'decoder_layers': DECODER_LAYERS,
     'min_num_tokens': MIN_NUM_TOKENS,
-    'max_length': MAX_LENGTH,
-    'min_length': MIN_LENGTH,
+    'min_length': MIN_LENGTH_DOCSTRING,
+    'max_length': MAX_LENGTH_DOCSTRING,
+    'min_length_code': MIN_LENGTH_CODE,
+    'max_length_code': MAX_LENGTH_CODE,
     'hidden_size': HIDDEN_SIZE,
     'learning_rate': LEARNING_RATE,
     'momentum': MOMENTUM,
