@@ -59,9 +59,9 @@ def run(args):
 
     print('Working on dataframe...')
     if const.LABELS_ONLY:
-        train_data.df['code_tokens'] = train_data.df['docstring_tokens']
-        test_data.df['code_tokens'] = test_data.df['docstring_tokens']
-        valid_data.df['code_tokens'] = valid_data.df['docstring_tokens']
+        train_data.df[['code_tokens']] = train_data.df[['docstring_tokens']]
+        test_data.df[['code_tokens']] = test_data.df[['docstring_tokens']]
+        valid_data.df[['code_tokens']] = valid_data.df[['docstring_tokens']]
 
     if remove_duplicates:
         print('Removing duplicates...')
