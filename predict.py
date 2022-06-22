@@ -10,7 +10,7 @@ import data
 import model
 
 
-def evaluate(encoder, decoder, sentence, max_length=const.MAX_LENGTH):
+def evaluate(encoder, decoder, sentence, max_length=const.MAX_LENGTH_CODE):
     with torch.no_grad():
         encoder_hidden = encoder.initHidden()
         encoder_output, encoder_hidden = encoder(sentence, encoder_hidden)
