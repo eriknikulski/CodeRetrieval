@@ -1,5 +1,4 @@
 import argparse
-import codecs
 import pickle
 
 import pandas as pd
@@ -37,25 +36,25 @@ def run(args):
                                     build_language=False, remove_duplicates=remove_duplicates, to_tensors=False)
 
     print('Creating training file...')
-    train_file = codecs.open(const.PREPROCESS_TRAIN_PATH, 'w', encoding='utf-8')
-    for text in train_data.df['docstring_tokens']:
-        train_file.write(f'{" ".join(text)}\n')
-    for text in test_data.df['docstring_tokens']:
-        train_file.write(f'{" ".join(text)}\n')
-    for text in valid_data.df['docstring_tokens']:
-        train_file.write(f'{" ".join(text)}\n')
+    with open(const.PREPROCESS_TRAIN_PATH, 'w', encoding='utf-8') as train_file:
+        for text in train_data.df['docstring_tokens']:
+            train_file.write(f'{" ".join(text)}\n')
+        for text in test_data.df['docstring_tokens']:
+            train_file.write(f'{" ".join(text)}\n')
+        for text in valid_data.df['docstring_tokens']:
+            train_file.write(f'{" ".join(text)}\n')
 
     print('Creating codes file...')
-    train_file = codecs.open(const.PREPROCESS_TRAIN_PATH, encoding='utf-8')
-    codes_file = codecs.open(const.PREPROCESS_CODES_PATH, 'w', encoding='utf-8')
-    subword_nmt.learn_bpe(train_file, codes_file, const.PREPROCESS_VOCAB_SIZE)
+    with open(const.PREPROCESS_TRAIN_PATH, encoding='utf-8') as train_file, \
+            open(const.PREPROCESS_CODES_PATH, 'w', encoding='utf-8') as codes_file:
+        subword_nmt.learn_bpe(train_file, codes_file, const.PREPROCESS_VOCAB_SIZE)
 
     print('Applying codes...')
-    codes_file = codecs.open(const.PREPROCESS_CODES_PATH, encoding='utf-8')
-    bpe = subword_nmt.BPE(codes_file)
-    train_data.df[['docstring_tokens']] = train_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
-    test_data.df[['docstring_tokens']] = test_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
-    valid_data.df[['docstring_tokens']] = valid_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
+    with open(const.PREPROCESS_CODES_PATH, encoding='utf-8') as codes_file:
+        bpe = subword_nmt.BPE(codes_file)
+        train_data.df[['docstring_tokens']] = train_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
+        test_data.df[['docstring_tokens']] = test_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
+        valid_data.df[['docstring_tokens']] = valid_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
 
     print('Working on dataframe...')
     if const.LABELS_ONLY:
