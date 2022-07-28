@@ -1,16 +1,23 @@
 from __future__ import unicode_literals, print_function, division
 import argparse
+import hashlib
+import os
 import pickle
+import random
+import string
 import time
 import math
 
-from comet_ml import Experiment
+import comet_ml
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 from torch import optim
+from torch.nn.parallel import DistributedDataParallel
 
 import const
 import data
+import ddp
 import keys
 import loader
 import model
@@ -51,28 +58,29 @@ def timeSince(since, percent):
 
 
 @print_time()
-def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch_num):
+def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, rank, experiment, epoch_num):
     losses = []
     size = len(dataloader.dataset)
     current_batch_size = const.BATCH_SIZE
-    encoder.setBatchSize(current_batch_size)
-    decoder.setBatchSize(current_batch_size)
 
     for batch, (inputs, targets, urls) in enumerate(dataloader):
+        inputs.to(rank)
+        targets.to(rank)
         if len(inputs) < const.BATCH_SIZE:
-            current_batch_size = len(inputs)
-            encoder.setBatchSize(current_batch_size)
-            decoder.setBatchSize(current_batch_size)
+            break
 
         loss = 0
 
         input_length = inputs[0].size(0)
         target_length = targets[0].size(0)
 
-        encoder_hidden = encoder.initHidden()
+        encoder_hidden = (torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
+                                      device=const.DEVICE).to(rank),
+                          torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
+                                      device=const.DEVICE).to(rank))
         encoder_output, encoder_hidden = encoder(inputs, encoder_hidden)
 
-        decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=const.DEVICE)
+        decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=const.DEVICE).to(rank)
         decoder_hidden = torch.cat(tuple(el for el in encoder_hidden[0]), dim=1).view(1, current_batch_size, -1)
 
         for di in range(target_length):
@@ -80,7 +88,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
             topv, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
-            loss += loss_fn(decoder_output, targets[:,di].flatten())
+            loss += loss_fn(decoder_output, targets[:,di].flatten().to(rank))
         loss = loss / target_length
 
         # Backpropagation
@@ -90,32 +98,40 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         encoder_optimizer.step()
         decoder_optimizer.step()
 
-        experiment.log_metric('batch_loss', loss.item(), step=epoch_num * size / const.BATCH_SIZE + batch)
+        if rank:
+            experiment.log_metric(f'{rank}_batch_loss', loss.item(),
+                                  step=epoch_num * size / dist.get_world_size() / const.BATCH_SIZE + batch)
+        else:
+            experiment.log_metric(f'batch_loss', loss.item(), step=epoch_num * size / const.BATCH_SIZE + batch)
         losses.append(loss.item())
 
         if batch % const.TRAINING_PER_BATCH_PRINT == 0:
-            loss, current = loss.item(), batch * const.BATCH_SIZE
+            loss, current = loss.item(), batch * const.BATCH_SIZE       # TODO: when distr div by world size
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
     return losses
 
 
-def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
+def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num):
     size = len(dataloader.dataset)
     num_batches = len(dataloader)
     test_loss, correct = 0, 0
     current_batch_size = const.BATCH_SIZE_TEST
-    encoder.setBatchSize(current_batch_size)
-    decoder.setBatchSize(current_batch_size)
+    input_lang = dataloader.dataset.input_lang
+    output_lang = dataloader.dataset.input_lang
 
     inputs = None
 
     with torch.no_grad():
         for inputs, targets, urls in dataloader:
+            inputs.to(rank)
+            targets.to(rank)
             if len(inputs) < const.BATCH_SIZE_TEST:
-                current_batch_size = len(inputs)
-                encoder.setBatchSize(current_batch_size)
-                decoder.setBatchSize(current_batch_size)
-            encoder_hidden = encoder.initHidden()
+                break
+            encoder_hidden = (
+                torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
+                            device=const.DEVICE),
+                torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
+                            device=const.DEVICE))
 
             input_length = inputs[0].size(0)
             target_length = targets[0].size(0)
@@ -134,27 +150,77 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
                 decoder_input = topi.squeeze().detach()  # detach from history as input
 
                 output.append(topi)
-                loss += loss_fn(decoder_output, targets[:, di].flatten())
+                loss += loss_fn(decoder_output, targets[:, di].flatten().to(rank))
 
             test_loss += loss.item() / target_length
             results = torch.cat(output).view(1, -1, current_batch_size).T
-            correct += (results == targets).all(axis=1).sum().item()
+            correct += (results.to(rank) == targets.to(rank)).all(axis=1).sum().item()
 
-    inputs = [' '.join(decoder.lang.seqFromTensor(el.flatten())) for el in inputs[:5]]
-    results = [' '.join(decoder.lang.seqFromTensor(el.flatten())) for el in results[:5]]
+    inputs = [' '.join(input_lang.seqFromTensor(el.flatten())) for el in inputs[:5]]
+    results = [' '.join(output_lang.seqFromTensor(el.flatten())) for el in results[:5]]
     experiment.log_text(str(epoch_num) + '\n' +
                         '\n'.join(str(input) + '  ====>  ' + str(result) for input, result in zip(inputs, results)))
 
     test_loss /= num_batches
     correct /= size
-    experiment.log_metric('test_batch_loss', test_loss, step=epoch_num)
-    experiment.log_metric('accuracy', 100*correct, step=epoch_num)
+    if rank:
+        experiment.log_metric(f'{rank}_test_batch_loss', test_loss, step=epoch_num)
+        experiment.log_metric(f'{rank}_accuracy', 100*correct, step=epoch_num)
+    else:
+        experiment.log_metric(f'test_batch_loss', test_loss, step=epoch_num)
+        experiment.log_metric(f'accuracy', 100 * correct, step=epoch_num)
     print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
     return test_loss
 
 
-@print_time('\nTotal ')
-def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS):
+def get_experiment(run_id):
+    experiment_key = hashlib.sha1(run_id.encode('utf-8')).hexdigest()
+    os.environ['COMET_EXPERIMENT_KEY'] = experiment_key
+
+    api = comet_ml.API(api_key=keys.COMET_API_KEY)
+    api_experiment = api.get_experiment_by_key(experiment_key)
+
+    if not api_experiment:
+        return comet_ml.Experiment(
+            api_key=keys.COMET_API_KEY,
+            project_name=const.COMET_PROJECT_NAME,
+            workspace=const.COMET_WORKSPACE,)
+    else:
+        return comet_ml.ExistingExperiment(
+            api_key=keys.COMET_API_KEY,
+            project_name=const.COMET_PROJECT_NAME,
+            workspace=const.COMET_WORKSPACE,)
+
+
+def go_train(rank, world_size, train_data, test_data, experiment_name):
+    input_lang = train_data.input_lang
+    output_lang = train_data.output_lang
+
+    train_sampler = None
+    test_sampler = None
+
+    experiment = get_experiment(experiment_name)
+    experiment.log_parameters(const.HYPER_PARAMS)
+    experiment.log_parameter('world_size', world_size)
+
+    encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
+    decoder = model.DecoderRNN(const.BIDIRECTIONAL * const.ENCODER_LAYERS * const.HIDDEN_SIZE,
+                               output_lang.n_words, const.BATCH_SIZE, output_lang)
+
+    if world_size > 1:
+        ddp.setup(rank, world_size)
+
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
+        test_sampler = torch.utils.data.distributed.DistributedSampler(test_data)
+
+        encoder = DistributedDataParallel(encoder.to(rank), device_ids=[rank])
+        decoder = DistributedDataParallel(decoder.to(rank), device_ids=[rank])
+
+    dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=(train_sampler is None),
+                                   collate_fn=pad_collate.PadCollate(), sampler=train_sampler)
+    test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=(train_sampler is None),
+                                        collate_fn=pad_collate.PadCollate(), sampler=test_sampler)
+
     losses_train = []
     losses_test = []
     loss_fn = nn.NLLLoss()
@@ -164,31 +230,46 @@ def go_train(encoder, decoder, dataloader, test_dataloader, epochs=const.EPOCHS)
     encoder_scheduler = optim.lr_scheduler.StepLR(encoder_optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
     decoder_scheduler = optim.lr_scheduler.StepLR(decoder_optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
 
-    experiment = Experiment(
-        api_key=keys.COMET_API_KEY,
-        project_name="seq2seqtranslation",
-        workspace="eriknikulski",
-    )
-
-    experiment.log_parameters(const.HYPER_PARAMS)
-
     with experiment.train():
-        for epoch in range(epochs):
+        for epoch in range(const.EPOCHS):
             print(f"Epoch {epoch + 1}\n-------------------------------")
+            if train_sampler and test_sampler:
+                train_sampler.set_epoch(epoch)
+                test_sampler.set_epoch(epoch)
             losses_train.extend(train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer,
-                                           experiment, epoch))
+                                           rank, experiment, epoch))
             with experiment.test():
-                losses_test.append(test_loop(encoder, decoder, test_dataloader, loss_fn, experiment, epoch))
+                losses_test.append(test_loop(encoder, decoder, test_dataloader, loss_fn, rank, experiment, epoch))
             encoder_scheduler.step()
             decoder_scheduler.step()
 
-            experiment.log_metric('learning_rate_encoder', encoder_optimizer.param_groups[0]['lr'], step=epoch)
-            experiment.log_metric('learning_rate_decoder', decoder_optimizer.param_groups[0]['lr'], step=epoch)
+            if rank:
+                experiment.log_metric(f'{rank}_learning_rate_encoder', encoder_optimizer.param_groups[0]['lr'],
+                                      step=epoch)
+                experiment.log_metric(f'{rank}_learning_rate_decoder', decoder_optimizer.param_groups[0]['lr'],
+                                      step=epoch)
+            else:
+                experiment.log_metric(f'learning_rate_encoder', encoder_optimizer.param_groups[0]['lr'], step=epoch)
+                experiment.log_metric(f'learning_rate_decoder', decoder_optimizer.param_groups[0]['lr'], step=epoch)
 
     print("Done!")
     print(f'LR: {const.LEARNING_RATE}')
 
+    if rank is None and rank == 0:
+        save(encoder, decoder)
+    if world_size > 1:
+        ddp.cleanup()
+    experiment.end()
 
+
+def save(encoder, decoder):
+    torch.save(encoder.state_dict(), const.ENCODER_PATH)
+    torch.save(decoder.state_dict(), const.DECODER_PATH)
+
+    print('saved models')
+
+
+@print_time('\nTotal ')
 def run(args):
     if args.data == 'java':
         data_path = const.JAVA_PATH
@@ -202,6 +283,8 @@ def run(args):
         remove_duplicates = False
     else:
         remove_duplicates = True
+
+    const.CUDA_DEVICE_COUNT = torch.cuda.device_count()
 
     if args.load_data:
         train_file = open(const.TRAIN_DATA_SAVE_PATH, 'rb')
@@ -228,23 +311,15 @@ def run(args):
                                         labels_only=const.LABELS_ONLY, languages=[input_lang, output_lang],
                                         remove_duplicates=remove_duplicates)
 
-    train_dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=True,
-                                         collate_fn=pad_collate.PadCollate())
-    test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=True,
-                                        collate_fn=pad_collate.PadCollate())
-    valid_dataloader = loader.DataLoader(valid_data, batch_size=const.BATCH_SIZE_TEST, shuffle=True,
-                                         collate_fn=pad_collate.PadCollate())
+    const.HYPER_PARAMS['input_lang.n_words'] = input_lang.n_words
+    const.HYPER_PARAMS['output_lang.n_words'] = output_lang.n_words
 
-    encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang).to(const.DEVICE)
-    decoder = model.DecoderRNN(const.BIDIRECTIONAL * const.ENCODER_LAYERS * const.HIDDEN_SIZE,
-                               output_lang.n_words, const.BATCH_SIZE, output_lang).to(const.DEVICE)
-
-    go_train(encoder, decoder, train_dataloader, test_dataloader)
-
-    torch.save(encoder.state_dict(), const.ENCODER_PATH)
-    torch.save(decoder.state_dict(), const.DECODER_PATH)
-
-    print('saved models')
+    experiment_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(10))
+    print(f'CUDA_DEVICE_COUNT: {const.CUDA_DEVICE_COUNT}')
+    if const.CUDA_DEVICE_COUNT:
+        ddp.run(go_train, const.CUDA_DEVICE_COUNT, train_data, test_data, experiment_name)
+    else:
+        go_train(None, 1, train_data, test_data, experiment_name)
 
 
 if __name__ == '__main__':
