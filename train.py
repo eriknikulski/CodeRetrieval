@@ -289,10 +289,13 @@ def run(args):
     if args.load_data:
         train_file = open(const.TRAIN_DATA_SAVE_PATH, 'rb')
         train_data = pickle.load(train_file)
+        train_data.enforce_length_constraints()
         test_file = open(const.TEST_DATA_SAVE_PATH, 'rb')
         test_data = pickle.load(test_file)
+        test_data.enforce_length_constraints()
         valid_file = open(const.VALID_DATA_SAVE_PATH, 'rb')
         valid_data = pickle.load(valid_file)
+        valid_data.enforce_length_constraints()
 
         input_lang_file = open(const.INPUT_LANG_SAVE_PATH, 'rb')
         input_lang = pickle.load(input_lang_file)

@@ -56,12 +56,7 @@ class CodeDataset(Dataset):
         self.df = read_folder(RichPath.create(path))
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
         self.df[['code_tokens']] = self.df[['code_tokens']].applymap(target_transform)
-        self.df = self.df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[
-            (self.df.docstring_tokens.map(len) <= max_tokens_docstring) &
-            (self.df.docstring_tokens.map(len) >= min_tokens_docstring)]
-        self.df = self.df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[
-            (self.df.code_tokens.map(len) <= max_tokens_code) &
-            (self.df.code_tokens.map(len) >= min_tokens_code)]
+        self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring, min_tokens_code,  max_tokens_code)
         if labels_only:
             self.df['code_tokens'] = self.df['docstring_tokens']
         if remove_duplicates:
@@ -109,6 +104,16 @@ class CodeDataset(Dataset):
     def to_numpy(self):
         print('convert dataframe to numpy')
         self.df_np = self.df.to_numpy()[:,:3].tolist()
+
+    def enforce_length_constraints(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
+                                   max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
+                                   min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE):
+        self.df = self.df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[
+            (self.df.docstring_tokens.map(len) <= max_tokens_docstring) &
+            (self.df.docstring_tokens.map(len) >= min_tokens_docstring)]
+        self.df = self.df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[
+            (self.df.code_tokens.map(len) <= max_tokens_code) &
+            (self.df.code_tokens.map(len) >= min_tokens_code)]
 
 
 if __name__ == "__main__":
