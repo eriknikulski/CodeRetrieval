@@ -62,6 +62,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
     losses = []
     size = len(dataloader.dataset)
     current_batch_size = const.BATCH_SIZE
+    world_size = dist.get_world_size()
 
     for batch, (inputs, targets, urls) in enumerate(dataloader):
         inputs.to(rank)
@@ -74,7 +75,8 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         input_length = inputs[0].size(0)
         target_length = targets[0].size(0)
 
-        experiment.log_metric(f'seq_length', input_length)
+        experiment.log_metric(f'seq_length', input_length,
+                              step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
 
         encoder_hidden = (torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
                                       device=const.DEVICE).to(rank),
@@ -100,7 +102,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
 
         if rank:
             experiment.log_metric(f'{rank}_batch_loss', loss.item(),
-                                  step=epoch_num * size / dist.get_world_size() / const.BATCH_SIZE + batch)
+                                  step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
         else:
             experiment.log_metric(f'batch_loss', loss.item(), step=epoch_num * size / const.BATCH_SIZE + batch)
         losses.append(loss.item())
