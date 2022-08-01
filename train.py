@@ -68,7 +68,6 @@ def getGradientNorm(model):
 
 @print_time()
 def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, rank, experiment, epoch_num):
-    losses = []
     size = len(dataloader.dataset)
     current_batch_size = const.BATCH_SIZE
     world_size = dist.get_world_size()
@@ -117,12 +116,6 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
                                   step=epoch_num * size / const.BATCH_SIZE + batch)
         encoder_optimizer.step()
         decoder_optimizer.step()
-        losses.append(loss.item())
-
-        if batch % const.TRAINING_PER_BATCH_PRINT == 0:
-            loss, current = loss.item(), batch * const.BATCH_SIZE       # TODO: when distr div by world size
-            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-    return losses
 
 
 def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num):
@@ -181,8 +174,6 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
     else:
         experiment.log_metric(f'test_batch_loss', test_loss, step=epoch_num)
         experiment.log_metric(f'accuracy', 100 * correct, step=epoch_num)
-    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
-    return test_loss
 
 
 def get_experiment(run_id):
@@ -233,8 +224,6 @@ def go_train(rank, world_size, train_data, test_data, experiment_name):
     test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=(train_sampler is None),
                                         collate_fn=pad_collate.PadCollate(), sampler=test_sampler, drop_last=True)
 
-    losses_train = []
-    losses_test = []
     loss_fn = nn.NLLLoss()
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
@@ -248,10 +237,10 @@ def go_train(rank, world_size, train_data, test_data, experiment_name):
             if train_sampler and test_sampler:
                 train_sampler.set_epoch(epoch)
                 test_sampler.set_epoch(epoch)
-            losses_train.extend(train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer,
-                                           rank, experiment, epoch))
+            train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer,
+                       rank, experiment, epoch)
             with experiment.test():
-                losses_test.append(test_loop(encoder, decoder, test_dataloader, loss_fn, rank, experiment, epoch))
+                test_loop(encoder, decoder, test_dataloader, loss_fn, rank, experiment, epoch)
             encoder_scheduler.step()
             decoder_scheduler.step()
 
@@ -263,9 +252,6 @@ def go_train(rank, world_size, train_data, test_data, experiment_name):
             else:
                 experiment.log_metric(f'learning_rate_encoder', encoder_optimizer.param_groups[0]['lr'], step=epoch)
                 experiment.log_metric(f'learning_rate_decoder', decoder_optimizer.param_groups[0]['lr'], step=epoch)
-
-    print("Done!")
-    print(f'LR: {const.LEARNING_RATE}')
 
     if rank is None and rank == 0:
         save(encoder, decoder)
