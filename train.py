@@ -314,7 +314,7 @@ def run(args):
     const.HYPER_PARAMS['input_lang.n_words'] = input_lang.n_words
     const.HYPER_PARAMS['output_lang.n_words'] = output_lang.n_words
 
-    experiment_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(10))
+    experiment_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(const.COMET_EXP_NAME_LENGTH))
     print(f'CUDA_DEVICE_COUNT: {const.CUDA_DEVICE_COUNT}')
     if const.CUDA_DEVICE_COUNT:
         ddp.run(go_train, const.CUDA_DEVICE_COUNT, train_data, test_data, experiment_name)

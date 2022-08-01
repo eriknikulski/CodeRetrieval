@@ -6,6 +6,7 @@ MASTER_PORT = '12355'
 
 COMET_PROJECT_NAME = 'seq2seqtranslation'
 COMET_WORKSPACE = 'eriknikulski'
+COMET_EXP_NAME_LENGTH = 10
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
