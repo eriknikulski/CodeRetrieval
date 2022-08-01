@@ -68,9 +68,13 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         targets.to(rank)
 
         loss = 0
+        encoder_optimizer.zero_grad()
+        decoder_optimizer.zero_grad()
 
         input_length = inputs[0].size(0)
         target_length = targets[0].size(0)
+
+        experiment.log_metric(f'seq_length', input_length)
 
         encoder_hidden = (torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
                                       device=const.DEVICE).to(rank),
@@ -90,8 +94,6 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         loss = loss / target_length
 
         # Backpropagation
-        encoder_optimizer.zero_grad()
-        decoder_optimizer.zero_grad()
         loss.backward()
         encoder_optimizer.step()
         decoder_optimizer.step()
