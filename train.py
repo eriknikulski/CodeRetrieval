@@ -57,6 +57,15 @@ def timeSince(since, percent):
     return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
 
 
+def getGradientNorm(model):
+    total_norm = 0.0
+    parameters = [p for p in model.parameters() if p.grad is not None and p.requires_grad]
+    if len(parameters) > 0:
+        device = parameters[0].grad.device
+        total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2).to(device) for p in parameters]), 2.0).item()
+    return total_norm
+
+
 @print_time()
 def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, rank, experiment, epoch_num):
     losses = []
@@ -93,18 +102,21 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
             loss += loss_fn(decoder_output, targets[:,di].flatten().to(rank))
-        loss = loss / target_length
 
-        # Backpropagation
+        loss = loss / target_length
         loss.backward()
-        encoder_optimizer.step()
-        decoder_optimizer.step()
 
         if rank:
             experiment.log_metric(f'{rank}_batch_loss', loss.item(),
                                   step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
         else:
             experiment.log_metric(f'batch_loss', loss.item(), step=epoch_num * size / const.BATCH_SIZE + batch)
+            experiment.log_metric(f'encoder_grad_norm', getGradientNorm(encoder),
+                                  step=epoch_num * size / const.BATCH_SIZE + batch)
+            experiment.log_metric(f'decoder_grad_norm', getGradientNorm(decoder),
+                                  step=epoch_num * size / const.BATCH_SIZE + batch)
+        encoder_optimizer.step()
+        decoder_optimizer.step()
         losses.append(loss.item())
 
         if batch % const.TRAINING_PER_BATCH_PRINT == 0:
