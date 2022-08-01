@@ -66,8 +66,6 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
     for batch, (inputs, targets, urls) in enumerate(dataloader):
         inputs.to(rank)
         targets.to(rank)
-        if len(inputs) < const.BATCH_SIZE:
-            break
 
         loss = 0
 
@@ -125,8 +123,6 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
         for inputs, targets, urls in dataloader:
             inputs.to(rank)
             targets.to(rank)
-            if len(inputs) < const.BATCH_SIZE_TEST:
-                break
             encoder_hidden = (
                 torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
                             device=const.DEVICE),
@@ -217,9 +213,9 @@ def go_train(rank, world_size, train_data, test_data, experiment_name):
         decoder = DistributedDataParallel(decoder.to(rank), device_ids=[rank])
 
     dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=(train_sampler is None),
-                                   collate_fn=pad_collate.PadCollate(), sampler=train_sampler)
+                                   collate_fn=pad_collate.PadCollate(), sampler=train_sampler, drop_last=True)
     test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=(train_sampler is None),
-                                        collate_fn=pad_collate.PadCollate(), sampler=test_sampler)
+                                        collate_fn=pad_collate.PadCollate(), sampler=test_sampler, drop_last=True)
 
     losses_train = []
     losses_test = []
