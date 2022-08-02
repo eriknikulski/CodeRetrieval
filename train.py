@@ -134,11 +134,6 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
         for inputs, targets, urls in dataloader:
             inputs.to(rank)
             targets.to(rank)
-            encoder_hidden = (
-                torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
-                            device=const.DEVICE),
-                torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
-                            device=const.DEVICE))
 
             input_length = inputs[0].size(0)
             target_length = targets[0].size(0)
@@ -146,7 +141,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
             loss = 0
             output = []
 
-            _, encoder_hidden = encoder(inputs, encoder_hidden)
+            _, encoder_hidden = encoder(inputs)
 
             decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=const.DEVICE)
             decoder_hidden = (torch.cat(tuple(el for el in encoder_hidden[0]), dim=1).view(1, current_batch_size, -1),
