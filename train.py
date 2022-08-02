@@ -86,11 +86,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         experiment.log_metric(f'seq_length', input_length,
                               step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
 
-        encoder_hidden = (torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
-                                      device=const.DEVICE).to(rank),
-                          torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
-                                      device=const.DEVICE).to(rank))
-        encoder_output, encoder_hidden = encoder(inputs, encoder_hidden)
+        encoder_output, encoder_hidden = encoder(inputs)
 
         decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=const.DEVICE).to(rank)
         decoder_hidden = (torch.cat(tuple(el for el in encoder_hidden[0]), dim=1).view(1, current_batch_size, -1),

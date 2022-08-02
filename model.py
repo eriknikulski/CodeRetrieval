@@ -1,4 +1,5 @@
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -16,7 +17,10 @@ class EncoderRNN(nn.Module):
         self.lstm = nn.LSTM(hidden_size, hidden_size, const.ENCODER_LAYERS,
                             bidirectional=True if const.BIDIRECTIONAL == 2 else False)
 
-    def forward(self, input, hidden):
+    def forward(self, input):
+        rank = dist.get_rank() if dist.is_initialized() else None
+        hidden = (torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, self.batch_size, self.hidden_size).to(rank),
+                  torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, self.batch_size, self.hidden_size).to(rank))
         embedded = self.embedding(input).transpose(0, 1)
         output = embedded.view(-1, self.batch_size, self.hidden_size)
         output, hidden = self.lstm(output, hidden)
