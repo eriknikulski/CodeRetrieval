@@ -116,9 +116,9 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         else:
             experiment.log_metric(f'batch_loss', loss.item(), step=epoch_num * size / const.BATCH_SIZE + batch)
             experiment.log_metric(f'encoder_grad_norm', getGradientNorm(encoder),
-                                  step=epoch_num * size / const.BATCH_SIZE + batch)
+                                  step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
             experiment.log_metric(f'decoder_grad_norm', getGradientNorm(decoder),
-                                  step=epoch_num * size / const.BATCH_SIZE + batch)
+                                  step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
         encoder_optimizer.step()
         decoder_optimizer.step()
 
