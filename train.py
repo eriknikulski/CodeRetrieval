@@ -72,6 +72,8 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
     current_batch_size = const.BATCH_SIZE
     world_size = dist.get_world_size() if dist.is_initialized() else 1
 
+    experiment.log_metric(f'training_set_size', size)
+
     for batch, (inputs, targets, urls) in enumerate(dataloader):
         inputs.to(rank)
         targets.to(rank)
