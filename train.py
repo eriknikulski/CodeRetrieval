@@ -70,7 +70,7 @@ def getGradientNorm(model):
 def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, rank, experiment, epoch_num):
     size = len(dataloader.dataset)
     current_batch_size = const.BATCH_SIZE
-    world_size = dist.get_world_size()
+    world_size = dist.get_world_size() if dist.is_initialized() else 1
 
     for batch, (inputs, targets, urls) in enumerate(dataloader):
         inputs.to(rank)
