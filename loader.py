@@ -58,6 +58,8 @@ class CodeDataset(Dataset):
         self.df[['code_tokens']] = self.df[['code_tokens']].applymap(target_transform)
         if labels_only:
             self.df['code_tokens'] = self.df['docstring_tokens']
+            min_tokens_code = min_tokens_docstring
+            max_tokens_code = max_tokens_docstring
         self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring, min_tokens_code,  max_tokens_code)
         if remove_duplicates:
             self.remove_duplicates()
