@@ -56,9 +56,9 @@ class CodeDataset(Dataset):
         self.df = read_folder(RichPath.create(path))
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
         self.df[['code_tokens']] = self.df[['code_tokens']].applymap(target_transform)
-        self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring, min_tokens_code,  max_tokens_code)
         if labels_only:
             self.df['code_tokens'] = self.df['docstring_tokens']
+        self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring, min_tokens_code,  max_tokens_code)
         if remove_duplicates:
             self.remove_duplicates()
 
