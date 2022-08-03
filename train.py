@@ -91,8 +91,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         encoder_output, encoder_hidden = encoder(inputs)
 
         decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=const.DEVICE).to(rank)
-        decoder_hidden = (torch.cat(tuple(el for el in encoder_hidden[0]), dim=1).view(1, current_batch_size, -1),
-                          torch.cat(tuple(el for el in encoder_hidden[1]), dim=1).view(1, current_batch_size, -1))
+        decoder_hidden = encoder_hidden
 
         for di in range(target_length):
             decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
@@ -146,8 +145,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
             _, encoder_hidden = encoder(inputs)
 
             decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=const.DEVICE)
-            decoder_hidden = (torch.cat(tuple(el for el in encoder_hidden[0]), dim=1).view(1, current_batch_size, -1),
-                              torch.cat(tuple(el for el in encoder_hidden[1]), dim=1).view(1, current_batch_size, -1))
+            decoder_hidden = encoder_hidden
 
             for di in range(target_length):
                 decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
@@ -207,7 +205,7 @@ def go_train(rank, world_size, train_data, test_data, experiment_name):
     experiment.log_parameter('world_size', world_size)
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
-    decoder = model.DecoderRNN(const.BIDIRECTIONAL * const.ENCODER_LAYERS * const.HIDDEN_SIZE,
+    decoder = model.DecoderRNN(const.BIDIRECTIONAL * const.HIDDEN_SIZE,
                                output_lang.n_words, const.BATCH_SIZE, output_lang)
 
     if world_size > 1:

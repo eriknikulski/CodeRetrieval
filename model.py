@@ -42,7 +42,7 @@ class DecoderRNN(nn.Module):
         self.lang = lang
 
         self.embedding = nn.Embedding(output_size, hidden_size)
-        self.lstm = nn.LSTM(hidden_size, hidden_size)
+        self.lstm = nn.LSTM(hidden_size, hidden_size, const.DECODER_LAYERS)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
 
@@ -54,8 +54,8 @@ class DecoderRNN(nn.Module):
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(1, self.batch_size, self.hidden_size, device=const.DEVICE),\
-               torch.zeros(1, self.batch_size, self.hidden_size, device=const.DEVICE)
+        return torch.zeros(const.DECODER_LAYERS, self.batch_size, self.hidden_size, device=const.DEVICE),\
+               torch.zeros(const.DECODER_LAYERS, self.batch_size, self.hidden_size, device=const.DEVICE)
 
     def setBatchSize(self, batch_size):
         self.batch_size = batch_size
