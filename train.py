@@ -154,7 +154,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
                 topv, topi = decoder_output.topk(1)
                 decoder_input = topi.squeeze().detach()  # detach from history as input
 
-                output.append(topi)
+                output.append(topi.detach())
                 loss += loss_fn(decoder_output, targets[:, di].flatten().to(rank))
 
             test_loss += loss.item() / target_length
