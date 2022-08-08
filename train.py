@@ -203,6 +203,8 @@ def go_train(rank, world_size, train_data, test_data, experiment_name):
     experiment = get_experiment(experiment_name)
     experiment.log_parameters(const.HYPER_PARAMS)
     experiment.log_parameter('world_size', world_size)
+    experiment.log_parameter('train_data_size', len(train_data))
+    experiment.log_parameter('test_data_size', len(test_data))
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
     decoder = model.DecoderRNN(const.BIDIRECTIONAL * const.HIDDEN_SIZE,
