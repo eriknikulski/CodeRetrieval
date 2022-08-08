@@ -12,8 +12,8 @@ class Lang:
         self.name = name
         self.word2index = {}
         self.word2count = {}
-        self.index2word = {const.SOS_TOKEN: 'SOS', const.EOS_TOKEN: 'EOS'}
-        self.n_words = 2
+        self.index2word = {const.SOS_TOKEN: 'SOS', const.EOS_TOKEN: 'EOS', const.PAD_TOKEN: 'PAD'}
+        self.n_words = 3
 
     def addSentence(self, sentence):
         for word in sentence.split(' '):

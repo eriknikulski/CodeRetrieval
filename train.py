@@ -98,7 +98,13 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
             topv, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
-            loss += loss_fn(decoder_output, targets[:,di].flatten().to(rank))
+            current_loss = loss_fn(decoder_output, targets[:,di].flatten().to(rank))
+
+            loss_mask = targets != const.PAD_TOKEN
+            loss_masked = current_loss.where(loss_mask, torch.tensor(0.0))
+            current_loss = loss_masked.sum() / loss_mask.sum()
+
+            loss += current_loss
 
         loss = loss / target_length
         loss.backward()
@@ -224,7 +230,7 @@ def go_train(rank, world_size, train_data, test_data, experiment_name):
     test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=(train_sampler is None),
                                         collate_fn=pad_collate.PadCollate(), sampler=test_sampler, drop_last=True)
 
-    loss_fn = nn.NLLLoss()
+    loss_fn = nn.NLLLoss(reduction='none')
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
 
