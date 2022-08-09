@@ -29,11 +29,11 @@ def run(args):
         remove_duplicates = True
 
     train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', labels_only=const.LABELS_ONLY,
-                                    build_language=False, remove_duplicates=remove_duplicates, to_tensors=False)
+                                    build_language=False, remove_duplicates=remove_duplicates, to_tensors=False, sort=False,)
     test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/', labels_only=const.LABELS_ONLY,
-                                   build_language=False, remove_duplicates=remove_duplicates, to_tensors=False)
+                                   build_language=False, remove_duplicates=remove_duplicates, to_tensors=False, sort=False)
     valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/', labels_only=const.LABELS_ONLY,
-                                    build_language=False, remove_duplicates=remove_duplicates, to_tensors=False)
+                                    build_language=False, remove_duplicates=remove_duplicates, to_tensors=False, sort=False)
 
     print('Creating training files...')
     with open(const.PREPROCESS_TRAIN_PATH_DOC, 'w', encoding='utf-8') as train_file:
@@ -91,6 +91,10 @@ def run(args):
     train_data.to_tensors()
     test_data.to_tensors()
     valid_data.to_tensors()
+
+    train_data.sort()
+    test_data.sort()
+    valid_data.sort()
 
     df_all = pd.concat([train_data.df, test_data.df, valid_data.df])
 

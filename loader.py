@@ -43,8 +43,8 @@ def read_folder(folder: RichPath):
 class CodeDataset(Dataset):
     def __init__(self, path, transform=data.normalizeDocstring, target_transform=lambda x: x,
                  min_tokens_docstring=const.MIN_LENGTH_DOCSTRING, max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
-                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE,
-                 labels_only=False, languages=None, build_language=True, to_tensors=True, remove_duplicates=True):
+                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE, labels_only=False,
+                 languages=None, build_language=True, to_tensors=True, remove_duplicates=True, sort=True):
         self.path = path
         self.input_lang = None
         self.output_lang = None
@@ -69,6 +69,9 @@ class CodeDataset(Dataset):
 
         if to_tensors:
             self.to_tensors()
+
+        if sort:
+            self.sort()
 
         print(f'{self.__len__()} elements loaded!\n')
 
@@ -116,6 +119,9 @@ class CodeDataset(Dataset):
         self.df = self.df.filter(items=['docstring_tokens', 'code_tokens', 'url'])[
             (self.df.code_tokens.map(len) <= max_tokens_code) &
             (self.df.code_tokens.map(len) >= min_tokens_code)]
+
+    def sort(self):
+        self.df = self.df.sort_values(['docstring_tokens', 'code_tokens'])
 
 
 if __name__ == "__main__":
