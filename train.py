@@ -98,11 +98,12 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
             topv, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
-            current_loss = loss_fn(decoder_output, targets[:,di].flatten().to(rank))
+            current_target = targets[:,di].flatten().to(rank)
+            current_loss = loss_fn(decoder_output, current_target)
 
-            loss_mask = targets != const.PAD_TOKEN
-            loss_masked = current_loss.where(loss_mask, torch.tensor(0.0))
-            current_loss = loss_masked.sum() / loss_mask.sum()
+            loss_mask = current_target != const.PAD_TOKEN
+            loss_masked = current_loss.where(loss_mask, torch.tensor(0.0).to(rank))
+            current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
 
             loss += current_loss
 
@@ -159,11 +160,12 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
                 decoder_input = topi.squeeze().detach()  # detach from history as input
 
                 output.append(topi.detach())
-                current_loss = loss_fn(decoder_output, targets[:, di].flatten().to(rank))
+                current_targets = targets[:, di].flatten().to(rank)
+                current_loss = loss_fn(decoder_output, current_targets)
 
-                loss_mask = targets != const.PAD_TOKEN
-                loss_masked = current_loss.where(loss_mask, torch.tensor(0.0))
-                current_loss = loss_masked.sum() / loss_mask.sum()
+                loss_mask = current_targets != const.PAD_TOKEN
+                loss_masked = current_loss.where(loss_mask, torch.tensor(0.0).to(rank))
+                current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
 
                 loss += current_loss
 
