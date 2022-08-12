@@ -121,7 +121,7 @@ class CodeDataset(Dataset):
             (self.df.code_tokens.map(len) >= min_tokens_code)]
 
     def sort(self):
-        self.df = self.df.sort_values(['docstring_tokens', 'code_tokens'])
+        self.df = self.df.sort_values(by=['code_tokens', 'docstring_tokens'], key=lambda x: x.apply(len))
 
 
 if __name__ == "__main__":
