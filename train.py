@@ -224,7 +224,7 @@ def go_train(rank, world_size, train_data, test_data, experiment_name, port):
     decoder = model.DecoderRNN(const.BIDIRECTIONAL * const.HIDDEN_SIZE,
                                output_lang.n_words, const.BATCH_SIZE, output_lang)
 
-    if rank:
+    if rank is not None:
         ddp.setup(rank, world_size, port)
 
         experiment.log_parameter('port', os.environ['MASTER_PORT'])
@@ -269,9 +269,9 @@ def go_train(rank, world_size, train_data, test_data, experiment_name, port):
                 experiment.log_metric(f'learning_rate_encoder', encoder_optimizer.param_groups[0]['lr'], step=epoch)
                 experiment.log_metric(f'learning_rate_decoder', decoder_optimizer.param_groups[0]['lr'], step=epoch)
 
-    if rank is None and rank == 0:
+    if not rank:
         save(encoder, decoder)
-    if rank:
+    if rank is not None:
         ddp.cleanup()
     experiment.end()
 
