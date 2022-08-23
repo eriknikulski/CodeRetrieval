@@ -207,7 +207,7 @@ def get_experiment(run_id):
             workspace=const.COMET_WORKSPACE,)
 
 
-def go_train(rank, world_size, train_data, test_data, experiment_name):
+def go_train(rank, world_size, train_data, test_data, experiment_name, port):
     input_lang = train_data.input_lang
     output_lang = train_data.output_lang
 
@@ -339,11 +339,12 @@ def run(args):
     const.HYPER_PARAMS['output_lang.n_words'] = output_lang.n_words
 
     experiment_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(const.COMET_EXP_NAME_LENGTH))
+    port = ddp.find_free_port(const.MASTER_ADDR)
     print(f'CUDA_DEVICE_COUNT: {const.CUDA_DEVICE_COUNT}')
     if const.CUDA_DEVICE_COUNT:
-        ddp.run(go_train, const.CUDA_DEVICE_COUNT, train_data, test_data, experiment_name)
+        ddp.run(go_train, const.CUDA_DEVICE_COUNT, train_data, test_data, experiment_name, port)
     else:
-        go_train(None, 1, train_data, test_data, experiment_name)
+        go_train(None, 1, train_data, test_data, experiment_name, port)
 
 
 if __name__ == '__main__':
