@@ -224,8 +224,10 @@ def go_train(rank, world_size, train_data, test_data, experiment_name):
     decoder = model.DecoderRNN(const.BIDIRECTIONAL * const.HIDDEN_SIZE,
                                output_lang.n_words, const.BATCH_SIZE, output_lang)
 
-    if world_size > 1:
-        ddp.setup(rank, world_size)
+    if rank:
+        ddp.setup(rank, world_size, port)
+
+        experiment.log_parameter('port', os.environ['MASTER_PORT'])
 
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
         test_sampler = torch.utils.data.distributed.DistributedSampler(test_data)
@@ -269,7 +271,7 @@ def go_train(rank, world_size, train_data, test_data, experiment_name):
 
     if rank is None and rank == 0:
         save(encoder, decoder)
-    if world_size > 1:
+    if rank:
         ddp.cleanup()
     experiment.end()
 
