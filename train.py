@@ -75,8 +75,8 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
     experiment.log_metric(f'training_set_size', size)
 
     for batch, (inputs, targets, urls) in enumerate(dataloader):
-        inputs.to(rank)
-        targets.to(rank)
+        inputs = inputs.to(rank)
+        targets = targets.to(rank)
 
         loss = 0
         encoder_optimizer.zero_grad()
@@ -129,7 +129,8 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
 
 
 def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num):
-    size = len(dataloader.dataset)
+    world_size = dist.get_world_size() if dist.is_initialized() else 1
+    size = len(dataloader.dataset) / world_size
     num_batches = len(dataloader)
     test_loss, correct = 0, 0
     current_batch_size = const.BATCH_SIZE_TEST
@@ -182,7 +183,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
     correct /= size
     if rank:
         experiment.log_metric(f'{rank}_test_batch_loss', test_loss, step=epoch_num)
-        experiment.log_metric(f'{rank}_accuracy', 100*correct, step=epoch_num)
+        experiment.log_metric(f'{rank}_accuracy', 100 * correct, step=epoch_num)
     else:
         experiment.log_metric(f'test_batch_loss', test_loss, step=epoch_num)
         experiment.log_metric(f'accuracy', 100 * correct, step=epoch_num)
