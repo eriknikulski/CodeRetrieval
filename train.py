@@ -135,7 +135,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
     test_loss, correct = 0, 0
     current_batch_size = const.BATCH_SIZE_TEST
     input_lang = dataloader.dataset.input_lang
-    output_lang = dataloader.dataset.input_lang
+    output_lang = dataloader.dataset.output_lang
 
     inputs = None
 
