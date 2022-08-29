@@ -177,7 +177,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
     inputs = [' '.join(input_lang.seqFromTensor(el.flatten())) for el in inputs[:5]]
     results = [' '.join(output_lang.seqFromTensor(el.flatten())) for el in results[:5]]
     experiment.log_text(str(epoch_num) + '\n' +
-                        '\n'.join(str(input) + '  ====>  ' + str(result) for input, result in zip(inputs, results)))
+                        '\n\n'.join(str(input) + '  ====>  \n' + str(result) for input, result in zip(inputs, results)))
 
     test_loss /= num_batches
     correct /= size
