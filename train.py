@@ -323,6 +323,18 @@ def run(args):
             valid_data.df['code_tokens'] = valid_data.df['docstring_tokens']
 
             output_lang = input_lang
+
+            train_data.output_lang = train_data.input_lang
+            test_data.output_lang = test_data.input_lang
+            valid_data.output_lang = valid_data.input_lang
+
+            train_data.to_numpy()
+            test_data.to_numpy()
+            valid_data.to_numpy()
+
+            train_data.sort()
+            test_data.sort()
+            valid_data.sort()
     else:
         input_lang = data.Lang('docstring')
         output_lang = data.Lang('code')
