@@ -118,6 +118,10 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         if rank:
             experiment.log_metric(f'{rank}_batch_loss', loss.item(),
                                   step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
+            experiment.log_metric(f'{rank}_encoder_grad_norm', getGradientNorm(encoder),
+                                  step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
+            experiment.log_metric(f'{rank}_decoder_grad_norm', getGradientNorm(decoder),
+                                  step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
         else:
             experiment.log_metric(f'batch_loss', loss.item(), step=epoch_num * size / const.BATCH_SIZE + batch)
             experiment.log_metric(f'encoder_grad_norm', getGradientNorm(encoder),
