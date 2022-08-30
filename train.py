@@ -113,10 +113,11 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         loss = loss / target_length
         loss.backward()
 
-        nn.utils.clip_grad_norm_(encoder.parameters(),
-                                 max_norm=const.GRADIENT_CLIPPING_MAX_NORM, norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
-        nn.utils.clip_grad_norm_(decoder.parameters(),
-                                 max_norm=const.GRADIENT_CLIPPING_MAX_NORM, norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
+        if const.GRADIENT_CLIPPING_ENABLED:
+            nn.utils.clip_grad_norm_(encoder.parameters(),
+                                     max_norm=const.GRADIENT_CLIPPING_MAX_NORM, norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
+            nn.utils.clip_grad_norm_(decoder.parameters(),
+                                     max_norm=const.GRADIENT_CLIPPING_MAX_NORM, norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
 
         if rank:
             experiment.log_metric(f'{rank}_batch_loss', loss.item(),
