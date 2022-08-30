@@ -74,6 +74,9 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
 
     experiment.log_metric(f'training_set_size', size)
 
+    encoder.train()
+    decoder.train()
+
     for batch, (inputs, targets, urls) in enumerate(dataloader):
         inputs = inputs.to(rank)
         targets = targets.to(rank)
@@ -133,7 +136,11 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
 
 
 def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num):
-    world_size = dist.get_world_size() if dist.is_initialized() else 1
+    world_size = 1
+    if dist.is_initialized():
+        world_size = dist.get_world_size()
+        encoder = encoder.module
+        decoder = decoder.module
     size = len(dataloader.dataset) / world_size
     num_batches = len(dataloader)
     test_loss, correct = 0, 0
@@ -142,6 +149,9 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
     output_lang = dataloader.dataset.output_lang
 
     inputs = None
+
+    encoder.eval()
+    decoder.eval()
 
     with torch.no_grad():
         for inputs, targets, urls in dataloader:
@@ -234,6 +244,7 @@ def go_train(rank, world_size, train_data, test_data, experiment_name, port):
 
     if rank is not None:
         ddp.setup(rank, world_size, port)
+        torch.cuda.set_device(f"cuda:{rank}")
 
         experiment.log_parameter('port', os.environ['MASTER_PORT'])
 
