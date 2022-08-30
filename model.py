@@ -42,8 +42,9 @@ class DecoderRNN(nn.Module):
         self.lang = lang
 
         self.embedding = nn.Embedding(output_size, hidden_size)
-        self.lstm = nn.LSTM(hidden_size, hidden_size, const.DECODER_LAYERS)
-        self.out = nn.Linear(hidden_size, output_size)
+        self.lstm = nn.LSTM(hidden_size, hidden_size, const.DECODER_LAYERS,
+                            bidirectional=True if const.BIDIRECTIONAL == 2 else False)
+        self.out = nn.Linear(const.BIDIRECTIONAL * hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, input, hidden):

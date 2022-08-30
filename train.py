@@ -240,8 +240,7 @@ def go_train(rank, world_size, train_data, test_data, experiment_name, port):
     experiment.log_parameter('test_data_size', len(test_data))
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
-    decoder = model.DecoderRNN(const.BIDIRECTIONAL * const.HIDDEN_SIZE,
-                               output_lang.n_words, const.BATCH_SIZE, output_lang)
+    decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, const.BATCH_SIZE, output_lang)
 
     if rank is not None:
         ddp.setup(rank, world_size, port)
