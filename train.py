@@ -346,13 +346,13 @@ def run(args):
             test_data.output_lang = test_data.input_lang
             valid_data.output_lang = valid_data.input_lang
 
-            train_data.to_numpy()
-            test_data.to_numpy()
-            valid_data.to_numpy()
-
             train_data.sort()
             test_data.sort()
             valid_data.sort()
+
+            train_data.to_numpy()
+            test_data.to_numpy()
+            valid_data.to_numpy()
     else:
         input_lang = data.Lang('docstring')
         output_lang = data.Lang('code')
