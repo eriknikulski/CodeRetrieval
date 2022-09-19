@@ -188,8 +188,8 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
             test_loss += loss.item() / target_length
             results = torch.cat(output).view(1, -1, current_batch_size).T
             targets_mask = targets != const.PAD_TOKEN
-            results_masked = results.where(targets_mask, torch.tensor(-1))
-            targets_masked = targets.where(targets_mask, torch.tensor(-1))
+            results_masked = results.where(targets_mask, torch.tensor(-1).to(rank))
+            targets_masked = targets.where(targets_mask, torch.tensor(-1).to(rank))
             correct += (results_masked.to(rank) == targets_masked.to(rank)).all(axis=1).sum().item()
 
     inputs = [' '.join(input_lang.seqFromTensor(el.flatten())) for el in inputs[:5]]
