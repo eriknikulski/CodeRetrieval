@@ -29,6 +29,7 @@ parser.add_argument('-d', '--data', choices=['java', 'synth'], help='The data to
 parser.add_argument('-lo', '--labels-only', action='store_true', default=False, help='The data to be used.')
 parser.add_argument('-ld', '--load-data', action='store_true', default=False, help='Load preprocessed data.')
 parser.add_argument('-kd', '--keep-duplicates', action='store_true', default=False, help='Do not remove duplicates in data.')
+parser.add_argument('-g', '--gpu', action='store_true', default=False, help='Run on GPU(s).')
 
 
 def print_time(prefix=''):
@@ -320,6 +321,8 @@ def run(args):
         remove_duplicates = True
 
     const.CUDA_DEVICE_COUNT = torch.cuda.device_count()
+    if args.gpu and const.CUDA_DEVICE_COUNT < 1:
+        raise Exception('When running in GPU mode there should be at least 1 GPU available')
 
     if args.load_data:
         train_file = open(const.TRAIN_DATA_SAVE_PATH, 'rb')
@@ -374,7 +377,7 @@ def run(args):
     experiment_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(const.COMET_EXP_NAME_LENGTH))
     port = ddp.find_free_port(const.MASTER_ADDR)
     print(f'CUDA_DEVICE_COUNT: {const.CUDA_DEVICE_COUNT}')
-    if const.CUDA_DEVICE_COUNT:
+    if args.gpu:
         ddp.run(go_train, const.CUDA_DEVICE_COUNT, train_data, test_data, experiment_name, port)
     else:
         go_train(None, 1, train_data, test_data, experiment_name, port)
