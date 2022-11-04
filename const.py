@@ -77,4 +77,6 @@ HYPER_PARAMS = {
     'batch_size_test': BATCH_SIZE_TEST,
     'lr_step_size': LR_STEP_SIZE,
     'lr_gamma': LR_GAMMA,
+    'input_lang.n_words': -1,
+    'output_lang.n_words': -1,
 }
