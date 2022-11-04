@@ -51,7 +51,7 @@ class DecoderRNN(nn.Module):
         output = self.embedding(input).view(1, self.batch_size, -1)
         output = F.relu(output)
         output, hidden = self.lstm(output, hidden)
-        output = self.softmax(self.out(output[0]))
+        output = self.softmax(self.out(output[-1]))
         return output, hidden
 
     def initHidden(self):
