@@ -266,9 +266,11 @@ def go_train(rank, world_size, train_data, test_data, experiment_name, port):
         decoder = DistributedDataParallel(decoder.to(rank), device_ids=[rank])
 
     dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=(train_sampler is None),
-                                   collate_fn=pad_collate.PadCollate(), sampler=train_sampler, drop_last=True)
+                                   collate_fn=pad_collate.PadCollate(), sampler=train_sampler, drop_last=True,
+                                   num_workers=const.NUM_WORKERS_DATALOADER)
     test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=(train_sampler is None),
-                                        collate_fn=pad_collate.PadCollate(), sampler=test_sampler, drop_last=True)
+                                        collate_fn=pad_collate.PadCollate(), sampler=test_sampler, drop_last=True,
+                                        num_workers=const.NUM_WORKERS_DATALOADER)
 
     loss_fn = nn.NLLLoss(reduction='none')
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
