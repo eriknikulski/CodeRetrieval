@@ -13,14 +13,14 @@ class EncoderRNN(nn.Module):
         self.batch_size = batch_size
         self.lang = lang
 
-        self.embedding = nn.Embedding(input_size, hidden_size)
+        self.embedding = nn.Embedding(input_size, hidden_size).to(const.DEVICE)
         self.lstm = nn.LSTM(hidden_size, hidden_size, const.ENCODER_LAYERS,
-                            bidirectional=True if const.BIDIRECTIONAL == 2 else False)
+                            bidirectional=True if const.BIDIRECTIONAL == 2 else False).to(const.DEVICE)
 
     def forward(self, input):
         rank = dist.get_rank() if dist.is_initialized() else None
-        hidden = (torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, self.batch_size, self.hidden_size).to(rank),
-                  torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, self.batch_size, self.hidden_size).to(rank))
+        hidden = (torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, self.batch_size, self.hidden_size, device=const.DEVICE),
+                  torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, self.batch_size, self.hidden_size, device=const.DEVICE))
         embedded = self.embedding(input).transpose(0, 1)
         output = embedded.view(-1, self.batch_size, self.hidden_size)
         output, hidden = self.lstm(output, hidden)
@@ -41,11 +41,11 @@ class DecoderRNN(nn.Module):
         self.batch_size = batch_size
         self.lang = lang
 
-        self.embedding = nn.Embedding(output_size, hidden_size)
+        self.embedding = nn.Embedding(output_size, hidden_size).to(const.DEVICE)
         self.lstm = nn.LSTM(hidden_size, hidden_size, const.DECODER_LAYERS,
-                            bidirectional=True if const.BIDIRECTIONAL == 2 else False)
-        self.out = nn.Linear(const.BIDIRECTIONAL * hidden_size, output_size)
-        self.softmax = nn.LogSoftmax(dim=1)
+                            bidirectional=True if const.BIDIRECTIONAL == 2 else False).to(const.DEVICE)
+        self.out = nn.Linear(const.BIDIRECTIONAL * hidden_size, output_size).to(const.DEVICE)
+        self.softmax = nn.LogSoftmax(dim=1).to(const.DEVICE)
 
     def forward(self, input, hidden):
         output = self.embedding(input).view(1, self.batch_size, -1)

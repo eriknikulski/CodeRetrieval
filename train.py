@@ -79,8 +79,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
     decoder.train()
 
     for batch, (inputs, targets, urls) in enumerate(dataloader):
-        inputs = inputs.to(rank)
-        targets = targets.to(rank)
+        inputs, targets = inputs.to(const.DEVICE), targets.to(const.DEVICE)
 
         loss = 0
         encoder_optimizer.zero_grad()
@@ -94,7 +93,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
 
         encoder_output, encoder_hidden = encoder(inputs)
 
-        decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=const.DEVICE).to(rank)
+        decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=const.DEVICE)
         decoder_hidden = encoder_hidden
 
         for di in range(target_length):
@@ -102,17 +101,14 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
             topv, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
+            current_target = targets[:, di].flatten()
+            current_loss = loss_fn(decoder_output, current_target)
+
             if const.IGNORE_PADDING_IN_LOSS:
-                current_target = targets[:, di].flatten().to(rank)
-                current_loss = loss_fn(decoder_output, current_target)
-
                 loss_mask = current_target != const.PAD_TOKEN
-                loss_masked = current_loss.where(loss_mask, torch.tensor(0.0).to(rank))
+                loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=const.DEVICE))
                 current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
-
-                loss += current_loss
-            else:
-                loss += loss_fn(decoder_output, targets[:, di].flatten().to(rank))
+            loss += current_loss
 
         loss = loss / target_length
         loss.backward()
@@ -160,8 +156,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
 
     with torch.no_grad():
         for inputs, targets, urls in dataloader:
-            inputs.to(rank)
-            targets.to(rank)
+            inputs, targets = inputs.to(const.DEVICE), targets.to(const.DEVICE)
 
             input_length = inputs[0].size(0)
             target_length = targets[0].size(0)
@@ -180,26 +175,21 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
                 decoder_input = topi.squeeze().detach()  # detach from history as input
 
                 output.append(topi.detach())
-                current_targets = targets[:, di].flatten().to(rank)
-                current_loss = loss_fn(decoder_output, current_targets)
+
+                current_target = targets[:, di].flatten()
+                current_loss = loss_fn(decoder_output, current_target)
 
                 if const.IGNORE_PADDING_IN_LOSS:
-                    current_target = targets[:, di].flatten().to(rank)
-                    current_loss = loss_fn(decoder_output, current_target)
-
                     loss_mask = current_target != const.PAD_TOKEN
-                    loss_masked = current_loss.where(loss_mask, torch.tensor(0.0).to(rank))
+                    loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=const.DEVICE))
                     current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
-
-                    loss += current_loss
-                else:
-                    loss += loss_fn(decoder_output, targets[:, di].flatten().to(rank))
+                loss += current_loss
 
             test_loss += loss.item() / target_length
             results = torch.cat(output).view(1, -1, current_batch_size).T
             targets_mask = targets != const.PAD_TOKEN
-            results_masked = results.where(targets_mask, torch.tensor(-1).to(rank))
-            targets_masked = targets.where(targets_mask, torch.tensor(-1).to(rank))
+            results_masked = results.where(targets_mask, torch.tensor(-1, device=const.DEVICE))
+            targets_masked = targets.where(targets_mask, torch.tensor(-1, device=const.DEVICE))
             correct += (results_masked.to(rank) == targets_masked.to(rank)).all(axis=1).sum().item()
 
     inputs = [' '.join(input_lang.seqFromTensor(el.flatten())) for el in inputs[:5]]
@@ -251,19 +241,20 @@ def go_train(rank, world_size, train_data, test_data, experiment_name, port):
     experiment.log_parameter('input_lang_n_words', input_lang.n_words)
     experiment.log_parameter('output_lang_n_words', output_lang.n_words)
 
+    if rank is not None:
+        ddp.setup(rank, world_size, port)
+
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
     decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, const.BATCH_SIZE, output_lang)
 
     if rank is not None:
-        ddp.setup(rank, world_size, port)
-
         experiment.log_parameter('port', os.environ['MASTER_PORT'])
 
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
         test_sampler = torch.utils.data.distributed.DistributedSampler(test_data)
 
-        encoder = DistributedDataParallel(encoder.to(rank), device_ids=[rank])
-        decoder = DistributedDataParallel(decoder.to(rank), device_ids=[rank])
+        encoder = DistributedDataParallel(encoder.to(const.DEVICE), device_ids=[rank])
+        decoder = DistributedDataParallel(decoder.to(const.DEVICE), device_ids=[rank])
 
     dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=(train_sampler is None),
                                    collate_fn=pad_collate.PadCollate(), sampler=train_sampler, drop_last=True,
