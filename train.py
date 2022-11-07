@@ -102,14 +102,17 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
             topv, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
-            current_target = targets[:,di].flatten().to(rank)
-            current_loss = loss_fn(decoder_output, current_target)
+            if const.IGNORE_PADDING_IN_LOSS:
+                current_target = targets[:, di].flatten().to(rank)
+                current_loss = loss_fn(decoder_output, current_target)
 
-            loss_mask = current_target != const.PAD_TOKEN
-            loss_masked = current_loss.where(loss_mask, torch.tensor(0.0).to(rank))
-            current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
+                loss_mask = current_target != const.PAD_TOKEN
+                loss_masked = current_loss.where(loss_mask, torch.tensor(0.0).to(rank))
+                current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
 
-            loss += current_loss
+                loss += current_loss
+            else:
+                loss += loss_fn(decoder_output, targets[:, di].flatten().to(rank))
 
         loss = loss / target_length
         loss.backward()
@@ -180,11 +183,17 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
                 current_targets = targets[:, di].flatten().to(rank)
                 current_loss = loss_fn(decoder_output, current_targets)
 
-                loss_mask = current_targets != const.PAD_TOKEN
-                loss_masked = current_loss.where(loss_mask, torch.tensor(0.0).to(rank))
-                current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
+                if const.IGNORE_PADDING_IN_LOSS:
+                    current_target = targets[:, di].flatten().to(rank)
+                    current_loss = loss_fn(decoder_output, current_target)
 
-                loss += current_loss
+                    loss_mask = current_target != const.PAD_TOKEN
+                    loss_masked = current_loss.where(loss_mask, torch.tensor(0.0).to(rank))
+                    current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
+
+                    loss += current_loss
+                else:
+                    loss += loss_fn(decoder_output, targets[:, di].flatten().to(rank))
 
             test_loss += loss.item() / target_length
             results = torch.cat(output).view(1, -1, current_batch_size).T
