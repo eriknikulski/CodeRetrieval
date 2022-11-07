@@ -2,6 +2,7 @@ import os
 import socket
 from contextlib import closing
 
+import torch.cuda
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
@@ -22,6 +23,8 @@ def setup(rank, world_size, port):
     os.environ["RANK"] = str(rank)
 
     dist.init_process_group('nccl', rank=rank, world_size=world_size)
+    torch.cuda.set_device(f"cuda:{rank}")
+    dist.barrier()
 
 
 def cleanup():

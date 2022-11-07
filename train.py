@@ -256,7 +256,6 @@ def go_train(rank, world_size, train_data, test_data, experiment_name, port):
 
     if rank is not None:
         ddp.setup(rank, world_size, port)
-        torch.cuda.set_device(f"cuda:{rank}")
 
         experiment.log_parameter('port', os.environ['MASTER_PORT'])
 
