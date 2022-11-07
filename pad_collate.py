@@ -15,7 +15,7 @@ def pad_tensor(vec, pad, dim):
     """
     pad_size = list(vec.shape)
     pad_size[dim] = pad - vec.size(dim)
-    device = vec.get_device() if torch.cuda.is_available() else None
+    device = vec.device if torch.cuda.is_available() else None
     return torch.cat([vec, torch.full(pad_size, const.PAD_TOKEN, dtype=torch.long).to(device)], dim=dim)
 
 
