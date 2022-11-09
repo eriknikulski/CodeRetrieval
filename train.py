@@ -250,16 +250,16 @@ def go_train(rank, world_size, train_data, test_data, experiment_name, port):
     if rank is not None:
         experiment.log_parameter('port', os.environ['MASTER_PORT'])
 
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
-        test_sampler = torch.utils.data.distributed.DistributedSampler(test_data)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=const.SHUFFLE_DATA)
+        test_sampler = torch.utils.data.distributed.DistributedSampler(test_data, shuffle=const.SHUFFLE_DATA)
 
         encoder = DistributedDataParallel(encoder.to(const.DEVICE), device_ids=[rank])
         decoder = DistributedDataParallel(decoder.to(const.DEVICE), device_ids=[rank])
 
-    dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=(train_sampler is None),
+    dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=const.SHUFFLE_DATA,
                                    collate_fn=pad_collate.PadCollate(), sampler=train_sampler, drop_last=True,
                                    num_workers=const.NUM_WORKERS_DATALOADER)
-    test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=(train_sampler is None),
+    test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=const.SHUFFLE_DATA,
                                         collate_fn=pad_collate.PadCollate(), sampler=test_sampler, drop_last=True,
                                         num_workers=const.NUM_WORKERS_DATALOADER)
 
