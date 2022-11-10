@@ -263,10 +263,7 @@ def go_train(rank, world_size, train_data, test_data, experiment_name, port):
                                         collate_fn=pad_collate.PadCollate(), sampler=test_sampler, drop_last=True,
                                         num_workers=const.NUM_WORKERS_DATALOADER)
 
-    if const.IGNORE_PADDING_IN_LOSS:
-        loss_fn = nn.NLLLoss(reduction='none')
-    else:
-        loss_fn = nn.NLLLoss()
+    loss_fn = nn.NLLLoss(reduction='none') if const.IGNORE_PADDING_IN_LOSS else nn.NLLLoss()
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
 
