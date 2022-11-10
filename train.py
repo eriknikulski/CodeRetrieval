@@ -226,7 +226,14 @@ def get_experiment(run_id):
             workspace=const.COMET_WORKSPACE,)
 
 
-def go_train(rank, world_size, train_data, test_data, experiment_name, port):
+def go_train(rank, world_size, experiment_name, port, train_data=None, test_data=None):
+    if not train_data:
+        with open(const.TRAIN_DATA_WORKING_PATH, 'rb') as train_file:
+            train_data = pickle.load(train_file)
+    if not test_data:
+        with open(const.TEST_DATA_WORKING_PATH, 'rb') as test_file:
+            test_data = pickle.load(test_file)
+
     input_lang = train_data.input_lang
     output_lang = train_data.output_lang
 
@@ -326,20 +333,20 @@ def run(args):
         raise Exception('When running in GPU mode there should be at least 1 GPU available')
 
     if args.load_data:
-        train_file = open(const.TRAIN_DATA_SAVE_PATH, 'rb')
-        train_data = pickle.load(train_file)
-        train_data.enforce_length_constraints()
-        test_file = open(const.TEST_DATA_SAVE_PATH, 'rb')
-        test_data = pickle.load(test_file)
-        test_data.enforce_length_constraints()
-        valid_file = open(const.VALID_DATA_SAVE_PATH, 'rb')
-        valid_data = pickle.load(valid_file)
-        valid_data.enforce_length_constraints()
+        with open(const.TRAIN_DATA_SAVE_PATH, 'rb') as train_file:
+            train_data = pickle.load(train_file)
+            train_data.enforce_length_constraints()
+        with open(const.TEST_DATA_SAVE_PATH, 'rb') as test_file:
+            test_data = pickle.load(test_file)
+            test_data.enforce_length_constraints()
+        with open(const.VALID_DATA_SAVE_PATH, 'rb') as valid_file:
+            valid_data = pickle.load(valid_file)
+            valid_data.enforce_length_constraints()
 
-        input_lang_file = open(const.INPUT_LANG_SAVE_PATH, 'rb')
-        input_lang = pickle.load(input_lang_file)
-        output_lang_file = open(const.OUTPUT_LANG_SAVE_PATH, 'rb')
-        output_lang = pickle.load(output_lang_file)
+        with open(const.INPUT_LANG_SAVE_PATH, 'rb') as input_lang_file:
+            input_lang = pickle.load(input_lang_file)
+        with open(const.OUTPUT_LANG_SAVE_PATH, 'rb') as output_lang_file:
+            output_lang = pickle.load(output_lang_file)
 
         if const.LABELS_ONLY:
             train_data.df['code_tokens'] = train_data.df['docstring_tokens']
@@ -379,9 +386,12 @@ def run(args):
     port = ddp.find_free_port(const.MASTER_ADDR)
     print(f'CUDA_DEVICE_COUNT: {const.CUDA_DEVICE_COUNT}')
     if args.gpu:
-        ddp.run(go_train, const.CUDA_DEVICE_COUNT, train_data, test_data, experiment_name, port)
+        pickle.dump(train_data, open(const.TRAIN_DATA_WORKING_PATH, 'wb'))
+        pickle.dump(test_data, open(const.TEST_DATA_WORKING_PATH, 'wb'))
+        pickle.dump(valid_data, open(const.VALID_DATA_WORKING_PATH, 'wb'))
+        ddp.run(go_train, const.CUDA_DEVICE_COUNT, experiment_name, port)
     else:
-        go_train(None, 1, train_data, test_data, experiment_name, port)
+        go_train(None, 1, experiment_name, port, train_data, test_data)
 
 
 if __name__ == '__main__':
