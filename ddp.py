@@ -23,8 +23,8 @@ def setup(rank, world_size, port):
     os.environ["RANK"] = str(rank)
 
     dist.init_process_group('nccl', rank=rank, world_size=world_size)
-    const.DEVICE = f"cuda:{rank}"
-    torch.cuda.set_device(f"cuda:{rank}")
+    const.DEVICE = f'cuda:{rank}'
+    torch.cuda.set_device(const.DEVICE)
     dist.barrier()
 
 
@@ -32,6 +32,6 @@ def cleanup():
     dist.destroy_process_group()
 
 
-def run(fn, world_size, train_dataloader, test_dataloader, experiment_name, port):
-    mp.spawn(fn, args=(world_size, train_dataloader, test_dataloader, experiment_name, port,),
+def run(fn, world_size, experiment_name, port):
+    mp.spawn(fn, args=(world_size, experiment_name, port,),
              nprocs=world_size, join=True)
