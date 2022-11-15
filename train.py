@@ -268,17 +268,10 @@ def run(args):
             valid_data = pickle.load(valid_file)
             valid_data.enforce_length_constraints()
 
-        with open(const.INPUT_LANG_SAVE_PATH, 'rb') as input_lang_file:
-            input_lang = pickle.load(input_lang_file)
-        with open(const.OUTPUT_LANG_SAVE_PATH, 'rb') as output_lang_file:
-            output_lang = pickle.load(output_lang_file)
-
         if const.LABELS_ONLY:
             train_data.df['code_tokens'] = train_data.df['docstring_tokens']
             test_data.df['code_tokens'] = test_data.df['docstring_tokens']
             valid_data.df['code_tokens'] = valid_data.df['docstring_tokens']
-
-            output_lang = input_lang
 
             train_data.output_lang = train_data.input_lang
             test_data.output_lang = test_data.input_lang
@@ -303,9 +296,6 @@ def run(args):
         valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/',
                                         labels_only=const.LABELS_ONLY, languages=[input_lang, output_lang],
                                         remove_duplicates=remove_duplicates)
-
-    const.HYPER_PARAMS['input_lang.n_words'] = input_lang.n_words
-    const.HYPER_PARAMS['output_lang.n_words'] = output_lang.n_words
 
     experiment_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(const.COMET_EXP_NAME_LENGTH))
     port = ddp.find_free_port(const.MASTER_ADDR)
