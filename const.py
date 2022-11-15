@@ -69,6 +69,7 @@ GRADIENT_CLIPPING_MAX_NORM = 2.0
 HYPER_PARAMS = {
     'encoder_layers': ENCODER_LAYERS,
     'decoder_layers': DECODER_LAYERS,
+    'bidirectional': BIDIRECTIONAL,
     'min_num_tokens': MIN_NUM_TOKENS,
     'min_length_docstring': MIN_LENGTH_DOCSTRING,
     'max_length_docstring': MAX_LENGTH_DOCSTRING,
