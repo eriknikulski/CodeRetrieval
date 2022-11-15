@@ -26,6 +26,7 @@ parser.add_argument('-lo', '--labels-only', action='store_true', default=False, 
 parser.add_argument('-ld', '--load-data', action='store_true', default=False, help='Load preprocessed data.')
 parser.add_argument('-kd', '--keep-duplicates', action='store_true', default=False, help='Do not remove duplicates in data.')
 parser.add_argument('-g', '--gpu', action='store_true', default=False, help='Run on GPU(s).')
+parser.add_argument('-lad', '--last-data', action='store_true', default=False, help='Use last working dataset.')
 
 
 def print_time(prefix=''):
@@ -256,6 +257,8 @@ def run(args):
     const.CUDA_DEVICE_COUNT = torch.cuda.device_count()
     if args.gpu and const.CUDA_DEVICE_COUNT < 1:
         raise Exception('When running in GPU mode there should be at least 1 GPU available')
+    if args.load_data and args.last_data:
+        raise Exception('Unclear data argument. Choose one!')
 
     if args.load_data:
         with open(const.TRAIN_DATA_SAVE_PATH, 'rb') as train_file:
@@ -284,7 +287,7 @@ def run(args):
             train_data.to_numpy()
             test_data.to_numpy()
             valid_data.to_numpy()
-    else:
+    elif not args.last_data:
         input_lang = data.Lang('docstring')
         output_lang = data.Lang('code')
         train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/',
@@ -297,17 +300,22 @@ def run(args):
                                         labels_only=const.LABELS_ONLY, languages=[input_lang, output_lang],
                                         remove_duplicates=remove_duplicates)
 
+    if not args.last_data:
+        pickle.dump(train_data, open(const.TRAIN_DATA_WORKING_PATH, 'wb'))
+        pickle.dump(test_data, open(const.TEST_DATA_WORKING_PATH, 'wb'))
+        pickle.dump(valid_data, open(const.VALID_DATA_WORKING_PATH, 'wb'))
+
     experiment_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(const.COMET_EXP_NAME_LENGTH))
     port = ddp.find_free_port(const.MASTER_ADDR)
 
     print(f'CUDA_DEVICE_COUNT: {const.CUDA_DEVICE_COUNT}')
     if args.gpu:
-        pickle.dump(train_data, open(const.TRAIN_DATA_WORKING_PATH, 'wb'))
-        pickle.dump(test_data, open(const.TEST_DATA_WORKING_PATH, 'wb'))
-        pickle.dump(valid_data, open(const.VALID_DATA_WORKING_PATH, 'wb'))
         ddp.run(go_train, const.CUDA_DEVICE_COUNT, experiment_name, port)
     else:
-        go_train(None, 1, experiment_name, port, train_data, test_data)
+        if not args.last_data:
+            go_train(None, 1, experiment_name, port, train_data, test_data)
+        else:
+            go_train(None, 1, experiment_name, port)
 
 
 if __name__ == '__main__':
