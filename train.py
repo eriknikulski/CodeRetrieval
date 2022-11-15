@@ -1,24 +1,20 @@
 from __future__ import unicode_literals, print_function, division
 import argparse
-import hashlib
-import os
 import pickle
 import random
 import string
 import time
-import math
 
-import comet_ml
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 from torch import optim
 from torch.nn.parallel import DistributedDataParallel
 
+from comet import Experiment
 import const
 import data
 import ddp
-import keys
 import loader
 import model
 import pad_collate
@@ -68,12 +64,10 @@ def getGradientNorm(model):
 
 
 @print_time()
-def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, rank, experiment, epoch_num):
+def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch_num):
     size = len(dataloader.dataset)
     current_batch_size = const.BATCH_SIZE
     world_size = dist.get_world_size() if dist.is_initialized() else 1
-
-    experiment.log_metric(f'training_set_size', size)
 
     encoder.train()
     decoder.train()
@@ -87,9 +81,6 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
 
         input_length = inputs[0].size(0)
         target_length = targets[0].size(0)
-
-        experiment.log_metric(f'seq_length', input_length,
-                              step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
 
         encoder_output, encoder_hidden = encoder(inputs)
 
@@ -119,24 +110,13 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
             nn.utils.clip_grad_norm_(decoder.parameters(),
                                      max_norm=const.GRADIENT_CLIPPING_MAX_NORM, norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
 
-        if rank:
-            experiment.log_metric(f'{rank}_batch_loss', loss.item(),
-                                  step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
-            experiment.log_metric(f'{rank}_encoder_grad_norm', getGradientNorm(encoder),
-                                  step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
-            experiment.log_metric(f'{rank}_decoder_grad_norm', getGradientNorm(decoder),
-                                  step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
-        else:
-            experiment.log_metric(f'batch_loss', loss.item(), step=epoch_num * size / const.BATCH_SIZE + batch)
-            experiment.log_metric(f'encoder_grad_norm', getGradientNorm(encoder),
-                                  step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
-            experiment.log_metric(f'decoder_grad_norm', getGradientNorm(decoder),
-                                  step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
+        experiment.log_train_metrics(loss.item(), get_grad_norm(encoder), get_grad_norm(encoder), input_length,
+                                     step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
         encoder_optimizer.step()
         decoder_optimizer.step()
 
 
-def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num):
+def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
     world_size = 1
     if dist.is_initialized():
         world_size = dist.get_world_size()
@@ -190,43 +170,19 @@ def test_loop(encoder, decoder, dataloader, loss_fn, rank, experiment, epoch_num
             targets_mask = targets != const.PAD_TOKEN
             results_masked = results.where(targets_mask, torch.tensor(-1, device=const.DEVICE))
             targets_masked = targets.where(targets_mask, torch.tensor(-1, device=const.DEVICE))
-            correct += (results_masked.to(rank) == targets_masked.to(rank)).all(axis=1).sum().item()
-
-    inputs = [' '.join(input_lang.seqFromTensor(el.flatten())) for el in inputs[:5]]
-    results = [' '.join(output_lang.seqFromTensor(el.flatten())) for el in results[:5]]
-    experiment.log_text(str(epoch_num) + '\n' +
-                        '\n\n'.join(str(input) + '\n  ====>  \n' + str(result) for input, result in zip(inputs, results)))
+            correct += (results_masked == targets_masked).all(axis=1).sum().item()
 
     test_loss /= num_batches
     correct /= size
-    if rank:
-        experiment.log_metric(f'{rank}_test_batch_loss', test_loss, step=epoch_num)
-        experiment.log_metric(f'{rank}_accuracy', 100 * correct, step=epoch_num)
-    else:
-        experiment.log_metric(f'test_batch_loss', test_loss, step=epoch_num)
-        experiment.log_metric(f'accuracy', 100 * correct, step=epoch_num)
 
-
-def get_experiment(run_id):
-    experiment_key = hashlib.sha1(run_id.encode('utf-8')).hexdigest()
-    os.environ['COMET_EXPERIMENT_KEY'] = experiment_key
-
-    api = comet_ml.API(api_key=keys.COMET_API_KEY)
-    api_experiment = api.get_experiment_by_key(experiment_key)
-
-    if not api_experiment:
-        return comet_ml.Experiment(
-            api_key=keys.COMET_API_KEY,
-            project_name=const.COMET_PROJECT_NAME,
-            workspace=const.COMET_WORKSPACE,)
-    else:
-        return comet_ml.ExistingExperiment(
-            api_key=keys.COMET_API_KEY,
-            project_name=const.COMET_PROJECT_NAME,
-            workspace=const.COMET_WORKSPACE,)
+    experiment.log_test_metrics(input_lang, output_lang, inputs[:5], results[:5], test_loss, 100 * correct,
+                                step=epoch_num)
 
 
 def go_train(rank, world_size, experiment_name, port, train_data=None, test_data=None):
+    if rank is not None:
+        ddp.setup(rank, world_size, port)
+
     if not train_data:
         with open(const.TRAIN_DATA_WORKING_PATH, 'rb') as train_file:
             train_data = pickle.load(train_file)
@@ -240,23 +196,13 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, test_data
     train_sampler = None
     test_sampler = None
 
-    experiment = get_experiment(experiment_name)
-    experiment.log_parameters(const.HYPER_PARAMS)
-    experiment.log_parameter('world_size', world_size)
-    experiment.log_parameter('train_data_size', len(train_data))
-    experiment.log_parameter('test_data_size', len(test_data))
-    experiment.log_parameter('input_lang_n_words', input_lang.n_words)
-    experiment.log_parameter('output_lang_n_words', output_lang.n_words)
-
-    if rank is not None:
-        ddp.setup(rank, world_size, port)
+    experiment = Experiment(experiment_name)
+    experiment.log_initial_metrics(world_size, len(train_data), len(test_data), input_lang.n_words, output_lang.n_words)
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
     decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, const.BATCH_SIZE, output_lang)
 
-    if rank is not None:
-        experiment.log_parameter('port', os.environ['MASTER_PORT'])
-
+    if ddp.is_dist_avail_and_initialized():
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=const.SHUFFLE_DATA)
         test_sampler = torch.utils.data.distributed.DistributedSampler(test_data, shuffle=const.SHUFFLE_DATA)
 
@@ -277,38 +223,28 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, test_data
     encoder_scheduler = optim.lr_scheduler.StepLR(encoder_optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
     decoder_scheduler = optim.lr_scheduler.StepLR(decoder_optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
 
-    with experiment.train():
-        for epoch in range(const.EPOCHS):
-            print(f"Epoch {epoch + 1}\n-------------------------------")
-            if train_sampler and test_sampler:
-                train_sampler.set_epoch(epoch)
-                test_sampler.set_epoch(epoch)
-            train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer,
-                       rank, experiment, epoch)
-            with experiment.test():
-                test_loop(encoder, decoder, test_dataloader, loss_fn, rank, experiment, epoch)
-            encoder_scheduler.step()
-            decoder_scheduler.step()
+    for epoch in range(const.EPOCHS):
+        print(f"Epoch {epoch + 1}\n-------------------------------")
+        if train_sampler and test_sampler:
+            train_sampler.set_epoch(epoch)
+            test_sampler.set_epoch(epoch)
+        train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch)
+        test_loop(encoder, decoder, test_dataloader, loss_fn, experiment, epoch)
+        encoder_scheduler.step()
+        decoder_scheduler.step()
 
-            if rank:
-                experiment.log_metric(f'{rank}_learning_rate_encoder', encoder_optimizer.param_groups[0]['lr'],
-                                      step=epoch)
-                experiment.log_metric(f'{rank}_learning_rate_decoder', decoder_optimizer.param_groups[0]['lr'],
-                                      step=epoch)
-            else:
-                experiment.log_metric(f'learning_rate_encoder', encoder_optimizer.param_groups[0]['lr'], step=epoch)
-                experiment.log_metric(f'learning_rate_decoder', decoder_optimizer.param_groups[0]['lr'], step=epoch)
+        experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
+                                     decoder_optimizer.param_groups[0]['lr'], step=epoch)
 
-    if not rank:
-        save(encoder, decoder)
-    if rank is not None:
+    save(encoder, decoder)
+    if ddp.is_dist_avail_and_initialized():
         ddp.cleanup()
     experiment.end()
 
 
 def save(encoder, decoder):
-    torch.save(encoder.state_dict(), const.ENCODER_PATH)
-    torch.save(decoder.state_dict(), const.DECODER_PATH)
+    ddp.save_on_master(encoder.state_dict(), const.ENCODER_PATH)
+    ddp.save_on_master(decoder.state_dict(), const.DECODER_PATH)
 
     print('saved models')
 
