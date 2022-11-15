@@ -107,15 +107,12 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
 
 
 def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
-    world_size = 1
-    if dist.is_initialized():
-        world_size = dist.get_world_size()
-        encoder = encoder.module
-        decoder = decoder.module
-    size = len(dataloader.dataset) / world_size
-    num_batches = len(dataloader)
     test_loss, correct = 0, 0
     current_batch_size = const.BATCH_SIZE_TEST
+
+    size = len(dataloader.dataset) / ddp.get_world_size()
+    num_batches = int(size / current_batch_size)
+
     input_lang = dataloader.dataset.input_lang
     output_lang = dataloader.dataset.output_lang
 

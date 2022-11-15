@@ -59,6 +59,13 @@ def get_rank():
     return dist.get_rank()
 
 
+def get_world_size():
+    if not is_dist_avail_and_initialized():
+        return 0
+
+    return dist.get_world_size()
+
+
 def is_main_process():
     return get_rank() == 0
 
