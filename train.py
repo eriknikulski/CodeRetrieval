@@ -40,21 +40,7 @@ def print_time(prefix=''):
     return wrapper
 
 
-def asMinutes(s):
-    m = math.floor(s / 60)
-    s -= m * 60
-    return '%dm %ds' % (m, s)
-
-
-def timeSince(since, percent):
-    now = time.time()
-    s = now - since
-    es = s / percent
-    rs = es - s
-    return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
-
-
-def getGradientNorm(model):
+def get_grad_norm(model):
     total_norm = 0.0
     parameters = [p for p in model.parameters() if p.grad is not None and p.requires_grad]
     if len(parameters) > 0:
@@ -103,14 +89,16 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
                 current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
             loss += current_loss
 
-        loss = loss / target_length
+        loss /= target_length
         loss.backward()
 
         if const.GRADIENT_CLIPPING_ENABLED:
             nn.utils.clip_grad_norm_(encoder.parameters(),
-                                     max_norm=const.GRADIENT_CLIPPING_MAX_NORM, norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
+                                     max_norm=const.GRADIENT_CLIPPING_MAX_NORM,
+                                     norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
             nn.utils.clip_grad_norm_(decoder.parameters(),
-                                     max_norm=const.GRADIENT_CLIPPING_MAX_NORM, norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
+                                     max_norm=const.GRADIENT_CLIPPING_MAX_NORM,
+                                     norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
 
         experiment.log_train_metrics(loss.item(), get_grad_norm(encoder), get_grad_norm(encoder), input_length,
                                      step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
@@ -140,9 +128,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
         for inputs, targets, urls in dataloader:
             inputs, targets = inputs.to(const.DEVICE), targets.to(const.DEVICE)
 
-            input_length = inputs[0].size(0)
             target_length = targets[0].size(0)
-
             loss = 0
             output = []
 
@@ -171,6 +157,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
                 loss += current_loss
 
             test_loss += loss.item() / target_length
+            # calc percentage of correctly generated sequences
             results = torch.cat(output).view(1, -1, current_batch_size).T
             targets_mask = targets != const.PAD_TOKEN
             results_masked = results.where(targets_mask, torch.tensor(-1, device=const.DEVICE))
@@ -325,6 +312,7 @@ def run(args):
 
     experiment_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(const.COMET_EXP_NAME_LENGTH))
     port = ddp.find_free_port(const.MASTER_ADDR)
+
     print(f'CUDA_DEVICE_COUNT: {const.CUDA_DEVICE_COUNT}')
     if args.gpu:
         pickle.dump(train_data, open(const.TRAIN_DATA_WORKING_PATH, 'wb'))
