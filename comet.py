@@ -33,12 +33,13 @@ class Experiment:
 
     def log_initial_metrics(self, world_size, train_data_size, test_data_size, input_lang_n_words, output_lang_n_words):
         if ddp.is_main_process():
-            self.experiment.log_parameters(const.HYPER_PARAMS)
-            self.experiment.log_parameter('world_size', world_size)
-            self.experiment.log_parameter('train_data_size', train_data_size)
-            self.experiment.log_parameter('test_data_size', test_data_size)
-            self.experiment.log_parameter('input_lang_n_words', input_lang_n_words)
-            self.experiment.log_parameter('output_lang_n_words', output_lang_n_words)
+            self.experiment.log_parameters(const.get_hyperparams({
+                'setup   world_size': world_size,
+                'data   train_data_size': train_data_size,
+                'data   test_data_size': test_data_size,
+                'data   input_lang_n_words': input_lang_n_words,
+                'data   output_lang_n_words': output_lang_n_words,
+            }))
 
     def log_train_metrics(self, loss, encoder_grad_norm, decoder_grad_norm, input_length, step):
         if ddp.is_main_process():
