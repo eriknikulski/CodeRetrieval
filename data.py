@@ -64,7 +64,7 @@ def normalizeDocstring(s):
     s = ' '.join(s).lower()
     s = s.encode('ascii', 'ignore').decode('ascii')
     s = s.replace('< /', '</')
-    s = BeautifulSoup(s).get_text().strip()
+    s = BeautifulSoup(s, features='html.parser').get_text().strip()
     s = re.sub(r'{\s?@\w+\s(\S*)\s?}', r'\1', s)
     s = re.sub(r'\s[^\w\s](\w+)', r'\1', s)
     s = re.sub(r'\d+', const.NUMBER_TOKEN, s)
