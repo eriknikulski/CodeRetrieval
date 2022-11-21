@@ -111,7 +111,8 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
     test_loss, correct = 0, 0
     current_batch_size = const.BATCH_SIZE_TEST
 
-    size = len(dataloader.dataset) / ddp.get_world_size()
+    world_size = dist.get_world_size() if dist.is_initialized() else 1
+    size = len(dataloader.dataset) / world_size
     num_batches = int(size / current_batch_size)
 
     input_lang = dataloader.dataset.input_lang
