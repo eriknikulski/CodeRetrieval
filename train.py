@@ -232,11 +232,10 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, test_data
             test_sampler.set_epoch(epoch)
         train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch)
         test_loop(encoder, decoder, test_dataloader, loss_fn, experiment, epoch)
-        encoder_scheduler.step()
-        decoder_scheduler.step()
-
         experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
                                      decoder_optimizer.param_groups[0]['lr'], step=epoch)
+        encoder_scheduler.step()
+        decoder_scheduler.step()
 
     save(encoder, decoder)
     if ddp.is_dist_avail_and_initialized():
