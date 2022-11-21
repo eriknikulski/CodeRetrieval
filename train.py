@@ -291,9 +291,10 @@ def run(args):
             test_data.output_lang = test_data.input_lang
             valid_data.output_lang = valid_data.input_lang
 
-            train_data.sort()
-            test_data.sort()
-            valid_data.sort()
+            if not const.SHUFFLE_DATA:
+                train_data.sort()
+                test_data.sort()
+                valid_data.sort()
 
             train_data.to_numpy()
             test_data.to_numpy()
