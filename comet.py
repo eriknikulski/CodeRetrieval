@@ -41,12 +41,13 @@ class Experiment:
                 'data   output_lang_n_words': output_lang_n_words,
             }))
 
-    def log_train_metrics(self, loss, encoder_grad_norm, decoder_grad_norm, input_length, step):
+    def log_train_metrics(self, loss, encoder_grad_norm, decoder_grad_norm, input_length, accuracy, step):
         if ddp.is_main_process():
             self.experiment.log_metric(f'encoder_grad_norm', encoder_grad_norm, step=step)
             self.experiment.log_metric(f'decoder_grad_norm', decoder_grad_norm, step=step)
             self.experiment.log_metric(f'batch_loss', loss, step=step)
             self.experiment.log_metric(f'seq_length', input_length, step=step)
+            self.experiment.log_metric(f'train_accuracy', accuracy, step=step)
 
     def log_test_metrics(self, input_lang, output_lang, inputs, results, test_loss, accuracy, step):
         inputs = [' '.join(input_lang.seqFromTensor(el.flatten())) for el in inputs]
@@ -56,8 +57,8 @@ class Experiment:
                                      str(input) + '\n  ====>  \n' + str(result) for input, result in
                                      zip(inputs, results)))
 
-        self.experiment.log_metric(f'test_batch_loss', test_loss, step=step)
-        self.experiment.log_metric(f'accuracy', accuracy, step=step)
+        self.experiment.log_metric(f'test_loss', test_loss, step=step)
+        self.experiment.log_metric(f'test_accuracy', accuracy, step=step)
 
     def log_learning_rate(self, encoder_lr, decoder_lr, step):
         if ddp.is_main_process():

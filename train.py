@@ -50,6 +50,13 @@ def get_grad_norm(model):
     return total_norm
 
 
+def get_correct(results, targets):
+    targets_mask = targets != const.PAD_TOKEN
+    results_masked = results.where(targets_mask, torch.tensor(-1, device=const.DEVICE))
+    targets_masked = targets.where(targets_mask, torch.tensor(-1, device=const.DEVICE))
+    return (results_masked == targets_masked).all(axis=1).sum().item()
+
+
 @print_time()
 def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch_num):
     size = len(dataloader.dataset)
@@ -63,6 +70,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         inputs, targets = inputs.to(const.DEVICE), targets.to(const.DEVICE)
 
         loss = 0
+        output = []
         encoder_optimizer.zero_grad()
         decoder_optimizer.zero_grad()
 
@@ -81,6 +89,8 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
             topv, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
+            output.append(topi.detach())
+
             current_target = targets[:, di].flatten()
             current_loss = loss_fn(decoder_output, current_target)
 
@@ -89,6 +99,9 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
                 loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=const.DEVICE))
                 current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
             loss += current_loss
+
+        results = torch.cat(output).view(1, -1, current_batch_size).T
+        accuracy = get_correct(results, targets) / current_batch_size
 
         loss /= target_length
         loss.backward()
@@ -102,6 +115,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
                                      norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
 
         experiment.log_train_metrics(loss.item(), get_grad_norm(encoder), get_grad_norm(encoder), input_length,
+                                     accuracy,
                                      step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
         encoder_optimizer.step()
         decoder_optimizer.step()
@@ -158,10 +172,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
             test_loss += loss.item() / target_length
             # calc percentage of correctly generated sequences
             results = torch.cat(output).view(1, -1, current_batch_size).T
-            targets_mask = targets != const.PAD_TOKEN
-            results_masked = results.where(targets_mask, torch.tensor(-1, device=const.DEVICE))
-            targets_masked = targets.where(targets_mask, torch.tensor(-1, device=const.DEVICE))
-            correct += (results_masked == targets_masked).all(axis=1).sum().item()
+            correct += get_correct(results, targets)
 
     test_loss /= num_batches
     correct /= size
