@@ -58,7 +58,7 @@ def get_correct(results, targets):
 
 
 @print_time()
-def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch_num):
+def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch):
     size = len(dataloader.dataset)
     current_batch_size = const.BATCH_SIZE
     world_size = dist.get_world_size() if dist.is_initialized() else 1
@@ -116,12 +116,12 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
 
         experiment.log_train_metrics(loss.item(), get_grad_norm(encoder), get_grad_norm(encoder), input_length,
                                      accuracy,
-                                     step=epoch_num * size / world_size / const.BATCH_SIZE + batch)
+                                     step=epoch * size / world_size / const.BATCH_SIZE + batch, epoch=epoch)
         encoder_optimizer.step()
         decoder_optimizer.step()
 
 
-def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
+def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch):
     test_loss, correct = 0, 0
     current_batch_size = const.BATCH_SIZE_TEST
 
@@ -178,7 +178,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch_num):
     correct /= size
 
     experiment.log_test_metrics(input_lang, output_lang, inputs[:5], results[:5], test_loss, 100 * correct,
-                                step=epoch_num)
+                                step=epoch, epoch=epoch)
 
 
 def go_train(rank, world_size, experiment_name, port, train_data=None, test_data=None):
@@ -233,7 +233,7 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, test_data
         train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch)
         test_loop(encoder, decoder, test_dataloader, loss_fn, experiment, epoch)
         experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
-                                     decoder_optimizer.param_groups[0]['lr'], step=epoch)
+                                     decoder_optimizer.param_groups[0]['lr'], step=epoch, epoch=epoch)
         encoder_scheduler.step()
         decoder_scheduler.step()
 

@@ -41,15 +41,15 @@ class Experiment:
                 'data   output_lang_n_words': output_lang_n_words,
             }))
 
-    def log_train_metrics(self, loss, encoder_grad_norm, decoder_grad_norm, input_length, accuracy, step):
+    def log_train_metrics(self, loss, encoder_grad_norm, decoder_grad_norm, input_length, accuracy, step, epoch):
         if ddp.is_main_process():
-            self.experiment.log_metric(f'encoder_grad_norm', encoder_grad_norm, step=step)
-            self.experiment.log_metric(f'decoder_grad_norm', decoder_grad_norm, step=step)
-            self.experiment.log_metric(f'batch_loss', loss, step=step)
-            self.experiment.log_metric(f'seq_length', input_length, step=step)
-            self.experiment.log_metric(f'train_accuracy', accuracy, step=step)
+            self.experiment.log_metric(f'encoder_grad_norm', encoder_grad_norm, step=step, epoch=epoch)
+            self.experiment.log_metric(f'decoder_grad_norm', decoder_grad_norm, step=step, epoch=epoch)
+            self.experiment.log_metric(f'batch_loss', loss, step=step, epoch=epoch)
+            self.experiment.log_metric(f'seq_length', input_length, step=step, epoch=epoch)
+            self.experiment.log_metric(f'train_accuracy', accuracy, step=step, epoch=epoch)
 
-    def log_test_metrics(self, input_lang, output_lang, inputs, results, test_loss, accuracy, step):
+    def log_test_metrics(self, input_lang, output_lang, inputs, results, test_loss, accuracy, step, epoch):
         inputs = [' '.join(input_lang.seqFromTensor(el.flatten())) for el in inputs]
         results = [' '.join(output_lang.seqFromTensor(el.flatten())) for el in results]
         self.experiment.log_text(str(step) + '\n' +
@@ -57,10 +57,10 @@ class Experiment:
                                      str(input) + '\n  ====>  \n' + str(result) for input, result in
                                      zip(inputs, results)))
 
-        self.experiment.log_metric(f'test_loss', test_loss, step=step)
-        self.experiment.log_metric(f'test_accuracy', accuracy, step=step)
+        self.experiment.log_metric(f'test_loss', test_loss, step=step, epoch=epoch)
+        self.experiment.log_metric(f'test_accuracy', accuracy, step=step, epoch=epoch)
 
-    def log_learning_rate(self, encoder_lr, decoder_lr, step):
+    def log_learning_rate(self, encoder_lr, decoder_lr, step, epoch):
         if ddp.is_main_process():
-            self.experiment.log_metric(f'learning_rate_encoder', encoder_lr, step=step)
-            self.experiment.log_metric(f'learning_rate_decoder', decoder_lr, step=step)
+            self.experiment.log_metric(f'learning_rate_encoder', encoder_lr, step=step, epoch=epoch)
+            self.experiment.log_metric(f'learning_rate_decoder', decoder_lr, step=step, epoch=epoch)
