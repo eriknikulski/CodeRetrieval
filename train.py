@@ -176,9 +176,9 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch):
             correct += get_correct(results, targets)
 
     test_loss /= num_batches
-    correct /= size
+    accuracy = correct / size
 
-    experiment.log_test_metrics(input_lang, output_lang, inputs[:5], results[:5], test_loss, 100 * correct,
+    experiment.log_test_metrics(input_lang, output_lang, inputs[:5], results[:5], test_loss, accuracy,
                                 step=epoch, epoch=epoch)
 
 
