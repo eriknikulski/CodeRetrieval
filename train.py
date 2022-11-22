@@ -211,11 +211,11 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, test_data
 
         encoder = DistributedDataParallel(encoder.to(const.DEVICE), device_ids=[rank])
         decoder = DistributedDataParallel(decoder.to(const.DEVICE), device_ids=[rank])
-
-    dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=const.SHUFFLE_DATA,
+    shuffle = const.SHUFFLE_DATA if (train_sampler is None) else None
+    dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=shuffle,
                                    collate_fn=pad_collate.PadCollate(), sampler=train_sampler, drop_last=True,
                                    num_workers=const.NUM_WORKERS_DATALOADER)
-    test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=const.SHUFFLE_DATA,
+    test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=shuffle,
                                         collate_fn=pad_collate.PadCollate(), sampler=test_sampler, drop_last=True,
                                         num_workers=const.NUM_WORKERS_DATALOADER)
 
