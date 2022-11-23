@@ -92,9 +92,10 @@ def run(args):
     test_data.to_tensors()
     valid_data.to_tensors()
 
-    train_data.sort()
-    test_data.sort()
-    valid_data.sort()
+    if not const.SHUFFLE_DATA:
+        train_data.sort()
+        test_data.sort()
+        valid_data.sort()
 
     df_all = pd.concat([train_data.df, test_data.df, valid_data.df])
 
