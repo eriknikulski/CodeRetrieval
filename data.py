@@ -65,9 +65,26 @@ def normalizeDocstring(s):
     s = s.encode('ascii', 'ignore').decode('ascii')
     s = s.replace('< /', '</')
     s = BeautifulSoup(s, features='html.parser').get_text().strip()
-    s = re.sub(r'{\s?@\w+\s(\S*)\s?}', r'\1', s)
-    s = re.sub(r'\s[^\w\s](\w+)', r'\1', s)
-    s = re.sub(r'\d+', const.NUMBER_TOKEN, s)
+    # removes all doc annotations of the form { @someword }
+    s = re.sub(r'\{\s?@\w+\s?}', r' ', s)
+    # replace all doc annotations of the form { @someword _content } with _content
+    s = re.sub(r'\{\s?@\w+\s([^}]*)\s?}', r'\1', s)
+    # remove everything that has some form of 'non - javadoc' in it
+    s = re.sub(r'.*\( non - javadoc \).*', r'', s)
+    s = re.sub(r'@deprecated.*', r'', s)
+    # remove everything that starts with 'to do'
+    s = re.sub(r'^to\s?do.*', r'', s)
+    # replace 'e . g .' with 'eg'
+    s = re.sub(r'e \. g \.', r' eg ', s)
+    s = re.sub(r'e \. g ', r' eg ', s)
+    # replace 'i . e .' with 'ie'
+    s = re.sub(r'i \. e \.', r' ie ', s)
+    s = re.sub(r'i \. e ', r' ie ', s)
+    # remove everything after first occurring dot including dot
+    s = re.sub(r'\..*', r'', s)
+    # remove all special chars but dot
+    s = re.sub(r'[^\w\s.]', r' ', s)
+    s = re.sub(r'\d+', f' {const.NUMBER_TOKEN} ', s)
     s = list(filter(None, s.split(' ')))
     return s
 
