@@ -44,9 +44,9 @@ def match(seq, df):
 
 
 def run():
-    input_lang_file = open(const.INPUT_LANG_SAVE_PATH, 'rb')
+    input_lang_file = open(const.DATA_INPUT_LANG_PATH, 'rb')
     input_lang = pickle.load(input_lang_file)
-    output_lang_file = open(const.OUTPUT_LANG_SAVE_PATH, 'rb')
+    output_lang_file = open(const.DATA_OUTPUT_LANG_PATH, 'rb')
     output_lang = pickle.load(output_lang_file)
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, 1, input_lang).to(const.DEVICE)
@@ -59,10 +59,10 @@ def run():
     decoder.eval()
 
     queries = pd.read_csv(const.QUERY_CSV_PATH)
-    all_data = pd.read_pickle(const.ALL_DATA_DF_SAVE_PATH)
+    all_data = pd.read_pickle(const.DATA_ALL_DF_PATH)
     all_data[['code_tokens']] = all_data[['code_tokens']].applymap(lambda x: list(x.flatten()))
 
-    with open(const.PREPROCESS_CODES_PATH, encoding='utf-8') as codes_file:
+    with open(const.PREPROCESS_BPE_CODES_PATH, encoding='utf-8') as codes_file:
         bpe = subword_nmt.BPE(codes_file)
 
     predictions = []

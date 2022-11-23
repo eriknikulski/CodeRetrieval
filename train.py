@@ -187,10 +187,10 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, test_data
         ddp.setup(rank, world_size, port)
 
     if not train_data:
-        with open(const.TRAIN_DATA_WORKING_PATH, 'rb') as train_file:
+        with open(const.DATA_WORKING_TRAIN_PATH, 'rb') as train_file:
             train_data = pickle.load(train_file)
     if not test_data:
-        with open(const.TEST_DATA_WORKING_PATH, 'rb') as test_file:
+        with open(const.DATA_WORKING_TEST_PATH, 'rb') as test_file:
             test_data = pickle.load(test_file)
 
     input_lang = train_data.input_lang
@@ -245,8 +245,8 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, test_data
 
 
 def save(encoder, decoder):
-    ddp.save_on_master(encoder.state_dict(), const.ENCODER_PATH)
-    ddp.save_on_master(decoder.state_dict(), const.DECODER_PATH)
+    ddp.save_on_master(encoder.state_dict(), const.MODEL_ENCODER_PATH)
+    ddp.save_on_master(decoder.state_dict(), const.MODEL_DECODER_PATH)
 
     print('saved models')
 
@@ -273,13 +273,13 @@ def run(args):
         raise Exception('Unclear data argument. Choose one!')
 
     if args.load_data:
-        with open(const.TRAIN_DATA_SAVE_PATH, 'rb') as train_file:
+        with open(const.DATA_TRAIN_PATH, 'rb') as train_file:
             train_data = pickle.load(train_file)
             train_data.enforce_length_constraints()
-        with open(const.TEST_DATA_SAVE_PATH, 'rb') as test_file:
+        with open(const.DATA_TEST_PATH, 'rb') as test_file:
             test_data = pickle.load(test_file)
             test_data.enforce_length_constraints()
-        with open(const.VALID_DATA_SAVE_PATH, 'rb') as valid_file:
+        with open(const.DATA_VALID_PATH, 'rb') as valid_file:
             valid_data = pickle.load(valid_file)
             valid_data.enforce_length_constraints()
 
@@ -314,9 +314,9 @@ def run(args):
                                         remove_duplicates=remove_duplicates)
 
     if not args.last_data:
-        pickle.dump(train_data, open(const.TRAIN_DATA_WORKING_PATH, 'wb'))
-        pickle.dump(test_data, open(const.TEST_DATA_WORKING_PATH, 'wb'))
-        pickle.dump(valid_data, open(const.VALID_DATA_WORKING_PATH, 'wb'))
+        pickle.dump(train_data, open(const.DATA_WORKING_TRAIN_PATH, 'wb'))
+        pickle.dump(test_data, open(const.DATA_WORKING_TEST_PATH, 'wb'))
+        pickle.dump(valid_data, open(const.DATA_WORKING_VALID_PATH, 'wb'))
 
     experiment_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(const.COMET_EXP_NAME_LENGTH))
     port = ddp.find_free_port(const.MASTER_ADDR)

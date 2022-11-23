@@ -37,7 +37,7 @@ def run(args):
 
     if const.PREPROCESS_USE_BPE:
         print('Creating training files...')
-        with open(const.PREPROCESS_TRAIN_PATH_DOC, 'w', encoding='utf-8') as train_file:
+        with open(const.PREPROCESS_BPE_TRAIN_PATH_DOC, 'w', encoding='utf-8') as train_file:
             for text in train_data.df['docstring_tokens']:
                 train_file.write(f'{" ".join(text)}\n')
             for text in test_data.df['docstring_tokens']:
@@ -45,7 +45,7 @@ def run(args):
             for text in valid_data.df['docstring_tokens']:
                 train_file.write(f'{" ".join(text)}\n')
         if not const.LABELS_ONLY:
-            with open(const.PREPROCESS_TRAIN_PATH_CODE, 'w', encoding='utf-8') as train_file:
+            with open(const.PREPROCESS_BPE_TRAIN_PATH_CODE, 'w', encoding='utf-8') as train_file:
                 for text in train_data.df['code_tokens']:
                     train_file.write(f'{" ".join(text)}\n')
                 for text in test_data.df['code_tokens']:
@@ -54,34 +54,34 @@ def run(args):
                     train_file.write(f'{" ".join(text)}\n')
 
         print('Creating codes files...')
-        with open(const.PREPROCESS_TRAIN_PATH_DOC, encoding='utf-8') as train_file, \
-                open(const.PREPROCESS_CODES_PATH_DOC, 'w', encoding='utf-8') as codes_file:
+        with open(const.PREPROCESS_BPE_TRAIN_PATH_DOC, encoding='utf-8') as train_file, \
+                open(const.PREPROCESS_BPE_CODES_PATH_DOC, 'w', encoding='utf-8') as codes_file:
             subword_nmt.learn_bpe(train_file, codes_file, const.PREPROCESS_VOCAB_SIZE_DOC)
         if not const.LABELS_ONLY:
-            with open(const.PREPROCESS_TRAIN_PATH_CODE, encoding='utf-8') as train_file, \
-                    open(const.PREPROCESS_CODES_PATH_CODE, 'w', encoding='utf-8') as codes_file:
+            with open(const.PREPROCESS_BPE_TRAIN_PATH_CODE, encoding='utf-8') as train_file, \
+                    open(const.PREPROCESS_BPE_CODES_PATH_CODE, 'w', encoding='utf-8') as codes_file:
                 subword_nmt.learn_bpe(train_file, codes_file, const.PREPROCESS_VOCAB_SIZE_CODE)
 
         print('Creating vocab files...')
-        with open(const.PREPROCESS_TRAIN_PATH_DOC, encoding='utf-8') as train_file, \
-                open(const.PREPROCESS_VOCAB_PATH_DOC, 'w', encoding='utf-8') as vocab_file:
+        with open(const.PREPROCESS_BPE_TRAIN_PATH_DOC, encoding='utf-8') as train_file, \
+                open(const.PREPROCESS_BPE_VOCAB_PATH_DOC, 'w', encoding='utf-8') as vocab_file:
             subword_nmt.get_vocab(train_file, vocab_file)
         if not const.LABELS_ONLY:
-            with open(const.PREPROCESS_TRAIN_PATH_CODE, encoding='utf-8') as train_file, \
-                    open(const.PREPROCESS_VOCAB_PATH_CODE, 'w', encoding='utf-8') as vocab_file:
+            with open(const.PREPROCESS_BPE_TRAIN_PATH_CODE, encoding='utf-8') as train_file, \
+                    open(const.PREPROCESS_BPE_VOCAB_PATH_CODE, 'w', encoding='utf-8') as vocab_file:
                 subword_nmt.get_vocab(train_file, vocab_file)
 
         print('Applying codes...')
-        with open(const.PREPROCESS_CODES_PATH_DOC, encoding='utf-8') as codes_file, \
-                open(const.PREPROCESS_VOCAB_PATH_DOC, encoding='utf-8') as vocab_file:
+        with open(const.PREPROCESS_BPE_CODES_PATH_DOC, encoding='utf-8') as codes_file, \
+                open(const.PREPROCESS_BPE_VOCAB_PATH_DOC, encoding='utf-8') as vocab_file:
             vocab = subword_nmt.read_vocabulary(vocab_file, const.PREPROCESS_VOCAB_FREQ_THRESHOLD)
             bpe = subword_nmt.BPE(codes_file, vocab=vocab)
             train_data.df[['docstring_tokens']] = train_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
             test_data.df[['docstring_tokens']] = test_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
             valid_data.df[['docstring_tokens']] = valid_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
         if not const.LABELS_ONLY:
-            with open(const.PREPROCESS_CODES_PATH_CODE, encoding='utf-8') as codes_file, \
-                    open(const.PREPROCESS_VOCAB_PATH_CODE, encoding='utf-8') as vocab_file:
+            with open(const.PREPROCESS_BPE_CODES_PATH_CODE, encoding='utf-8') as codes_file, \
+                    open(const.PREPROCESS_BPE_VOCAB_PATH_CODE, encoding='utf-8') as vocab_file:
                 vocab = subword_nmt.read_vocabulary(vocab_file, const.PREPROCESS_VOCAB_FREQ_THRESHOLD)
                 bpe = subword_nmt.BPE(codes_file, vocab=vocab)
                 train_data.df[['code_tokens']] = train_data.df[['code_tokens']].applymap(bpe.segment_tokens)
@@ -114,12 +114,12 @@ def run(args):
     df_all = pd.concat([train_data.df, test_data.df, valid_data.df])
 
     print('Saving...')
-    pickle.dump(train_data, open(const.TRAIN_DATA_SAVE_PATH, 'wb'))
-    pickle.dump(test_data, open(const.TEST_DATA_SAVE_PATH, 'wb'))
-    pickle.dump(valid_data, open(const.VALID_DATA_SAVE_PATH, 'wb'))
-    pickle.dump(input_lang, open(const.INPUT_LANG_SAVE_PATH, 'wb'))
-    pickle.dump(output_lang, open(const.OUTPUT_LANG_SAVE_PATH, 'wb'))
-    df_all.to_pickle(const.ALL_DATA_DF_SAVE_PATH)
+    pickle.dump(train_data, open(const.DATA_TRAIN_PATH, 'wb'))
+    pickle.dump(test_data, open(const.DATA_TEST_PATH, 'wb'))
+    pickle.dump(valid_data, open(const.DATA_VALID_PATH, 'wb'))
+    pickle.dump(input_lang, open(const.DATA_INPUT_LANG_PATH, 'wb'))
+    pickle.dump(output_lang, open(const.DATA_OUTPUT_LANG_PATH, 'wb'))
+    df_all.to_pickle(const.DATA_ALL_DF_PATH)
 
 
 if __name__ == '__main__':
