@@ -13,8 +13,12 @@ class Lang:
         self.name = name
         self.word2index = {}
         self.word2count = {}
-        self.index2word = {const.SOS_TOKEN: 'SOS', const.EOS_TOKEN: 'EOS', const.PAD_TOKEN: 'PAD'}
-        self.n_words = 3
+        self.index2word = {
+            const.SOS_TOKEN: 'SOS',
+            const.EOS_TOKEN: 'EOS',
+            const.PAD_TOKEN: 'PAD',
+            const.OOV_TOKEN: 'OOV'}
+        self.n_words = 4
 
     def addSentence(self, sentence):
         for word in sentence.split(' '):
@@ -33,11 +37,11 @@ class Lang:
         else:
             self.word2count[word] += 1
 
-    def indexesFromSequence(self, seq):
-        return [self.word2index[word] for word in seq]
+    def indexesFromSequence(self, seq, min_freq=const.PREPROCESS_VOCAB_FREQ_THRESHOLD, oov_token=const.OOV_TOKEN):
+        return [self.word2index[word] if self.word2count[word] >= min_freq else oov_token for word in seq]
 
-    def tensorFromSequence(self, seq):
-        indexes = self.indexesFromSequence(seq)
+    def tensorFromSequence(self, seq, min_freq=const.PREPROCESS_VOCAB_FREQ_THRESHOLD, oov_token=const.OOV_TOKEN):
+        indexes = self.indexesFromSequence(seq, min_freq, oov_token)
         indexes.append(const.EOS_TOKEN)
         return torch.tensor(indexes, dtype=torch.long, device=const.DEVICE).view(-1, 1)
 
