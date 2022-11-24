@@ -96,6 +96,9 @@ class CodeDataset(Dataset):
         self.df[['docstring_tokens']].applymap(self.input_lang.addSequence)
         self.df[['code_tokens']].applymap(self.output_lang.addSequence)
 
+        self.input_lang.reduceVocab(const.PREPROCESS_VOCAB_FREQ_THRESHOLD)
+        self.output_lang.reduceVocab(const.PREPROCESS_VOCAB_FREQ_THRESHOLD)
+
     def set_languages(self, languages):
         self.input_lang = languages[0]
         self.output_lang = languages[1]

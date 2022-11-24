@@ -37,11 +37,11 @@ class Lang:
         else:
             self.word2count[word] += 1
 
-    def indexesFromSequence(self, seq, min_freq=const.PREPROCESS_VOCAB_FREQ_THRESHOLD, oov_token=const.OOV_TOKEN):
-        return [self.word2index[word] if self.word2count[word] >= min_freq else oov_token for word in seq]
+    def indexesFromSequence(self, seq, oov_token=const.OOV_TOKEN):
+        return [self.word2index[word] if word in self.word2index else oov_token for word in seq]
 
-    def tensorFromSequence(self, seq, min_freq=const.PREPROCESS_VOCAB_FREQ_THRESHOLD, oov_token=const.OOV_TOKEN):
-        indexes = self.indexesFromSequence(seq, min_freq, oov_token)
+    def tensorFromSequence(self, seq, oov_token=const.OOV_TOKEN):
+        indexes = self.indexesFromSequence(seq, oov_token)
         indexes.append(const.EOS_TOKEN)
         return torch.tensor(indexes, dtype=torch.long, device=const.DEVICE).view(-1, 1)
 
@@ -50,6 +50,14 @@ class Lang:
 
     def seqFromTensor(self, tensor):
         return self.seqFromIndices(el.item() for el in tensor)
+
+    def reduceVocab(self, min_freq):
+        for word, index in self.word2index.items():
+            if self.word2count[word] < min_freq:
+                del self.word2count[word]
+                del self.word2index[word]
+                del self.index2word[index]
+                self.n_words -= 1
 
 
 def unicode2Ascii(s):
