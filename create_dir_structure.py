@@ -5,7 +5,10 @@ import const
 
 def create_dirs():
     print('Creating directory structure...')
-    pathlib.Path(const.PROJECT_PATH + 'data/').mkdir(parents=True, exist_ok=True)
+    pathlib.Path(const.PROJECT_PATH + 'data/java/').mkdir(parents=True, exist_ok=True)
+    pathlib.Path(const.PROJECT_PATH + 'data/synthetic/train/').mkdir(parents=True, exist_ok=True)
+    pathlib.Path(const.PROJECT_PATH + 'data/synthetic/test/').mkdir(parents=True, exist_ok=True)
+    pathlib.Path(const.PROJECT_PATH + 'data/synthetic/valid/').mkdir(parents=True, exist_ok=True)
 
     pathlib.Path(const.EVAL_PATH).mkdir(parents=True, exist_ok=True)
 
