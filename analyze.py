@@ -9,8 +9,8 @@ import const
 
 def analyze_vocab(vocab):
     print('Creating train data vocab histogram...')
-    num_bins = 40
-    range_h = [0, 40]
+    num_bins = const.MAX_LENGTH_DOCSTRING
+    range_h = [const.MIN_LENGTH_DOCSTRING, const.MAX_LENGTH_DOCSTRING]
     x = vocab.values()
     plt.figure()
     n, bins, patches = plt.hist(x, num_bins, range=range_h, facecolor='blue', alpha=0.5)
@@ -21,8 +21,8 @@ def analyze_vocab(vocab):
 
 def analyze_entries(entries):
     print('Creating train data histogram...')
-    num_bins = 40
-    range_h = [0, 40]
+    num_bins = const.MAX_LENGTH_DOCSTRING
+    range_h = [const.MIN_LENGTH_DOCSTRING, const.MAX_LENGTH_DOCSTRING]
     plt.figure()
     n, bins, patches = plt.hist(entries, num_bins, range=range_h, facecolor='blue', alpha=0.5)
     plt.savefig(const.ANALYZE_DATA_HISTOGRAM)
