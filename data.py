@@ -2,6 +2,7 @@ import re
 import unicodedata
 
 from bs4 import BeautifulSoup
+from dpu_utils.codeutils import split_identifier_into_parts
 import torch
 
 import const
@@ -61,7 +62,10 @@ def normalizeSeq(s):
 def normalizeDocstring(s):
     if s[-1] == '.':
         s = s[:-1]
-    s = ' '.join(s).lower()
+
+    s = ' '.join(s)
+    s = split_identifier_into_parts(s)
+    s = ' '.join(s)
     s = s.encode('ascii', 'ignore').decode('ascii')
     s = s.replace('< /', '</')
     s = BeautifulSoup(s, features='html.parser').get_text().strip()
