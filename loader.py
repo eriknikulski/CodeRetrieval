@@ -77,7 +77,7 @@ class CodeDataset(Dataset):
         print(f'{self.__len__()} elements loaded!\n')
 
     def __len__(self):
-        return len(self.df)
+        return len(self.df_np)
 
     def __getitem__(self, idx):
         return self.df_np[idx]
