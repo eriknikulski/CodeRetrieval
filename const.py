@@ -53,6 +53,16 @@ ANALYZE_PATH = SAVE_PATH + 'analyze/'
 ANALYZE_VOCAB_HISTOGRAM = ANALYZE_PATH + 'vocab_hist.png'
 ANALYZE_DATA_HISTOGRAM = ANALYZE_PATH + 'data_hist.png'
 
+PROFILER_PATH = SAVE_PATH + 'profiler/'
+PROFILER_TRACE_PATH = PROFILER_PATH + 'trace/'
+PROFILER_STACKS_PATH = PROFILER_PATH + 'stacks/'
+
+PROFILER_IS_ACTIVE = False
+PROFILER_WAIT = 1
+PROFILER_WARMUP = 1
+PROFILER_ACTIVE = 1
+PROFILER_REPEAT = 1
+
 SOS_TOKEN = 0
 EOS_TOKEN = 1
 PAD_TOKEN = 2
@@ -95,6 +105,12 @@ GRADIENT_CLIPPING_MAX_NORM = 5.0
 def get_hyperparams(params=None):
     params = {} if not params else params
     return {
+        'profiler   is_active': PROFILER_IS_ACTIVE,
+        'profiler   wait': PROFILER_WAIT,
+        'profiler   warmup': PROFILER_WARMUP,
+        'profiler   active': PROFILER_ACTIVE,
+        'profiler   repeat': PROFILER_REPEAT,
+
         'setup   labels_only': LABELS_ONLY,
         'setup   ignore_padding_in_loss': IGNORE_PADDING_IN_LOSS,
         'setup   shuffle_data': SHUFFLE_DATA,

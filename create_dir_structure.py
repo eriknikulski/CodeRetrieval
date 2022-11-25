@@ -21,6 +21,9 @@ def create_dirs():
     pathlib.Path(const.MODEL_PATH).mkdir(parents=True, exist_ok=True)
 
     pathlib.Path(const.ANALYZE_PATH).mkdir(parents=True, exist_ok=True)
+
+    pathlib.Path(const.PROFILER_TRACE_PATH).mkdir(parents=True, exist_ok=True)
+    pathlib.Path(const.PROFILER_STACKS_PATH).mkdir(parents=True, exist_ok=True)
     print('Finished.')
 
 

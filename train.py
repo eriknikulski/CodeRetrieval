@@ -19,6 +19,7 @@ import ddp
 import loader
 import model
 import pad_collate
+import profiler
 
 
 parser = argparse.ArgumentParser(description='ML model for sequence to sequence translation')
@@ -226,17 +227,19 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, test_data
     encoder_scheduler = optim.lr_scheduler.StepLR(encoder_optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
     decoder_scheduler = optim.lr_scheduler.StepLR(decoder_optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
 
-    for epoch in range(const.EPOCHS):
-        print(f"Epoch {epoch + 1}\n-------------------------------")
-        if train_sampler and test_sampler:
-            train_sampler.set_epoch(epoch)
-            test_sampler.set_epoch(epoch)
-        train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch)
-        test_loop(encoder, decoder, test_dataloader, loss_fn, experiment, epoch)
-        experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
-                                     decoder_optimizer.param_groups[0]['lr'], step=epoch, epoch=epoch)
-        encoder_scheduler.step()
-        decoder_scheduler.step()
+    with profiler.Profiler(active=const.PROFILER_IS_ACTIVE) as p:
+        for epoch in range(const.EPOCHS):
+            print(f"Epoch {epoch + 1}\n-------------------------------")
+            if train_sampler and test_sampler:
+                train_sampler.set_epoch(epoch)
+                test_sampler.set_epoch(epoch)
+            train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch)
+            test_loop(encoder, decoder, test_dataloader, loss_fn, experiment, epoch)
+            experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
+                                         decoder_optimizer.param_groups[0]['lr'], step=epoch, epoch=epoch)
+            encoder_scheduler.step()
+            decoder_scheduler.step()
+            p.step()
 
     save(encoder, decoder)
     if ddp.is_dist_avail_and_initialized():
