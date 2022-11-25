@@ -1,5 +1,6 @@
 import os
 import socket
+import sys
 from contextlib import closing
 
 import torch.cuda
@@ -73,3 +74,11 @@ def is_main_process():
 def sync():
     if is_dist_avail_and_initialized():
         dist.barrier()
+
+
+def set_stdout():
+    if is_dist_avail_and_initialized():
+        stdout_base = const.ROOT_DIR + '/../slurm-' + const.SLURM_JOB_ID
+        stdout = f'{stdout_base}-{dist.get_rank()}.out'
+        sys.stdout = open(stdout, 'a')
+        sys.stderr = open(stdout, 'a')
