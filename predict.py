@@ -31,9 +31,9 @@ def evaluate(encoder, decoder, sentence, max_length=const.MAX_LENGTH_CODE):
 
 
 def preprocess(sentence, input_lang, bpe):
-    sentence = data.normalizeDocstring(sentence)
+    sentence = data.normalize_docstring(sentence)
     sentence = bpe.segment_tokens(sentence)
-    return input_lang.tensorFromSequence(sentence)
+    return input_lang.tensor_from_sequence(sentence)
 
 
 def match(seq, df):
@@ -70,7 +70,7 @@ def run():
     for i, row in queries.iterrows():
         sentence = preprocess(row['query'].split(), input_lang, bpe)
         output_seq = evaluate(encoder, decoder, sentence)
-        output_sentence = ' '.join(decoder.lang.seqFromIndices(output_seq))
+        output_sentence = ' '.join(decoder.lang.seq_from_indices(output_seq))
         output = match(output_seq, all_data)
 
         predictions.append(['Java', row['query'], output.at[0, 'url']])

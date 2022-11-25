@@ -50,8 +50,8 @@ class Experiment:
             self.experiment.log_metric(f'train_accuracy', accuracy, step=step, epoch=epoch)
 
     def log_test_metrics(self, input_lang, output_lang, inputs, results, test_loss, accuracy, step, epoch):
-        inputs = [' '.join(input_lang.seqFromTensor(el.flatten())) for el in inputs]
-        results = [' '.join(output_lang.seqFromTensor(el.flatten())) for el in results]
+        inputs = [' '.join(input_lang.seq_from_tensor(el.flatten())) for el in inputs]
+        results = [' '.join(output_lang.seq_from_tensor(el.flatten())) for el in results]
         self.experiment.log_text(str(step) + '\n' +
                                  '\n\n'.join(
                                      str(input) + '\n  ====>  \n' + str(result) for input, result in

@@ -41,7 +41,7 @@ def read_folder(folder: RichPath):
 
 
 class CodeDataset(Dataset):
-    def __init__(self, path, transform=data.normalizeDocstring, target_transform=lambda x: x,
+    def __init__(self, path, transform=data.normalize_docstring, target_transform=lambda x: x,
                  min_tokens_docstring=const.MIN_LENGTH_DOCSTRING, max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
                  min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE, labels_only=False,
                  languages=None, build_language=True, to_tensors=True, remove_duplicates=True, sort=True):
@@ -93,11 +93,11 @@ class CodeDataset(Dataset):
         if languages:
             self.set_languages(languages)
 
-        self.df[['docstring_tokens']].applymap(self.input_lang.addSequence)
-        self.df[['code_tokens']].applymap(self.output_lang.addSequence)
+        self.df[['docstring_tokens']].applymap(self.input_lang.add_sequence)
+        self.df[['code_tokens']].applymap(self.output_lang.add_sequence)
 
-        self.input_lang.reduceVocab(const.PREPROCESS_VOCAB_FREQ_THRESHOLD)
-        self.output_lang.reduceVocab(const.PREPROCESS_VOCAB_FREQ_THRESHOLD)
+        self.input_lang.reduce_vocab(const.PREPROCESS_VOCAB_FREQ_THRESHOLD)
+        self.output_lang.reduce_vocab(const.PREPROCESS_VOCAB_FREQ_THRESHOLD)
 
     def set_languages(self, languages):
         self.input_lang = languages[0]
@@ -106,8 +106,8 @@ class CodeDataset(Dataset):
     def to_tensors(self):
         assert self.input_lang and self.output_lang
         print('converting sequences to tensors')
-        self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(self.input_lang.tensorFromSequence)
-        self.df[['code_tokens']] = self.df[['code_tokens']].applymap(self.output_lang.tensorFromSequence)
+        self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(self.input_lang.tensor_from_sequence)
+        self.df[['code_tokens']] = self.df[['code_tokens']].applymap(self.output_lang.tensor_from_sequence)
         self.to_numpy()
 
     def to_numpy(self):

@@ -21,15 +21,15 @@ class Lang:
             const.OOV_TOKEN: 'OOV'}
         self.n_words = 4
 
-    def addSentence(self, sentence):
+    def add_sentence(self, sentence):
         for word in sentence.split(' '):
-            self.addWord(word)
+            self.add_word(word)
 
-    def addSequence(self, seq):
+    def add_sequence(self, seq):
         for word in seq:
-            self.addWord(word)
+            self.add_word(word)
 
-    def addWord(self, word):
+    def add_word(self, word):
         if word not in self.word2index:
             self.word2index[word] = self.n_words
             self.word2count[word] = 1
@@ -38,21 +38,21 @@ class Lang:
         else:
             self.word2count[word] += 1
 
-    def indexesFromSequence(self, seq, oov_token=const.OOV_TOKEN):
+    def indexes_from_sequence(self, seq, oov_token=const.OOV_TOKEN):
         return [self.word2index[word] if word in self.word2index else oov_token for word in seq]
 
-    def tensorFromSequence(self, seq, oov_token=const.OOV_TOKEN):
-        indexes = self.indexesFromSequence(seq, oov_token)
+    def tensor_from_sequence(self, seq, oov_token=const.OOV_TOKEN):
+        indexes = self.indexes_from_sequence(seq, oov_token)
         indexes.append(const.EOS_TOKEN)
         return torch.tensor(indexes, dtype=torch.long, device=const.DEVICE).view(-1, 1)
 
-    def seqFromIndices(self, idcs):
+    def seq_from_indices(self, idcs):
         return [self.index2word[idx] for idx in idcs]
 
-    def seqFromTensor(self, tensor):
-        return self.seqFromIndices(el.item() for el in tensor)
+    def seq_from_tensor(self, tensor):
+        return self.seq_from_indices(el.item() for el in tensor)
 
-    def reduceVocab(self, min_freq):
+    def reduce_vocab(self, min_freq):
         for word, index in copy.deepcopy(self.word2index.items()):
             if self.word2count[word] < min_freq:
                 del self.word2count[word]
@@ -61,18 +61,18 @@ class Lang:
                 self.n_words -= 1
 
 
-def unicode2Ascii(s):
+def unicode_to_ascii(s):
     return ''.join(
         c for c in unicodedata.normalize('NFD', s)
         if unicodedata.category(c) != 'Mn'
     )
 
 
-def normalizeSeq(s):
-    return [el.strip() for el in [normalizeString(el) for el in s] if el.strip()]
+def normalize_seq(s):
+    return [el.strip() for el in [normalize_string(el) for el in s] if el.strip()]
 
 
-def normalizeDocstring(s):
+def normalize_docstring(s):
     if s[-1] == '.':
         s = s[:-1]
 
@@ -106,7 +106,7 @@ def normalizeDocstring(s):
     return s
 
 
-def normalizeString(s):
-    s = unicode2Ascii(s.lower().strip())
+def normalize_string(s):
+    s = unicode_to_ascii(s.lower().strip())
     s = re.sub(r"[^a-zA-Z]+", r" ", s)
     return s
