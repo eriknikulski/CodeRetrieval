@@ -53,7 +53,7 @@ class Lang:
         return self.seq_from_indices(el.item() for el in tensor)
 
     def reduce_vocab(self, min_freq):
-        for word, index in copy.deepcopy(self.word2index.items()):
+        for word, index in copy.deepcopy(self.word2index).items():
             if self.word2count[word] < min_freq:
                 del self.word2count[word]
                 del self.word2index[word]
