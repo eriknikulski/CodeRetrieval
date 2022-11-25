@@ -4,6 +4,8 @@ import torch
 MASTER_ADDR = 'localhost'
 MASTER_PORT = '12355'
 
+SLURM_JOB_ID = os.getenv('SLURM_JOBID', 'local')
+
 COMET_PROJECT_NAME = 'seq2seqtranslation'
 COMET_WORKSPACE = 'eriknikulski'
 COMET_EXP_NAME_LENGTH = 10
