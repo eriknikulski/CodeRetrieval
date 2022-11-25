@@ -74,7 +74,7 @@ class CodeDataset(Dataset):
         if sort:
             self.sort()
 
-        print(f'{self.__len__()} elements loaded!\n')
+        print(f'{len(self.df)} elements loaded!\n')
 
     def __len__(self):
         return len(self.df_np)
