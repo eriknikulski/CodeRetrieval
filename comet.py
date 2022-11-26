@@ -31,12 +31,12 @@ class Experiment:
     def end(self):
         self.experiment.end()
 
-    def log_initial_metrics(self, world_size, train_data_size, test_data_size, input_lang_n_words, output_lang_n_words):
+    def log_initial_metrics(self, world_size, train_data_size, valid_data_size, input_lang_n_words, output_lang_n_words):
         if ddp.is_main_process():
             self.experiment.log_parameters(const.get_hyperparams({
                 'setup   world_size': world_size,
                 'data   train_data_size': train_data_size,
-                'data   test_data_size': test_data_size,
+                'data   valid_data_size': valid_data_size,
                 'data   input_lang_n_words': input_lang_n_words,
                 'data   output_lang_n_words': output_lang_n_words,
             }))
@@ -49,7 +49,7 @@ class Experiment:
             self.experiment.log_metric(f'seq_length', input_length, step=step, epoch=epoch)
             self.experiment.log_metric(f'train_accuracy', accuracy, step=step, epoch=epoch)
 
-    def log_test_metrics(self, input_lang, output_lang, inputs, results, test_loss, accuracy, step, epoch):
+    def log_valid_metrics(self, input_lang, output_lang, inputs, results, valid_loss, accuracy, step, epoch):
         inputs = [' '.join(input_lang.seq_from_tensor(el.flatten())) for el in inputs]
         results = [' '.join(output_lang.seq_from_tensor(el.flatten())) for el in results]
         self.experiment.log_text(str(step) + '\n' +
@@ -57,8 +57,8 @@ class Experiment:
                                      str(input) + '\n  ====>  \n' + str(result) for input, result in
                                      zip(inputs, results)))
 
-        self.experiment.log_metric(f'test_loss', test_loss, step=step, epoch=epoch)
-        self.experiment.log_metric(f'test_accuracy', accuracy, step=step, epoch=epoch)
+        self.experiment.log_metric(f'valid_loss', valid_loss, step=step, epoch=epoch)
+        self.experiment.log_metric(f'valid_accuracy', accuracy, step=step, epoch=epoch)
 
     def log_learning_rate(self, encoder_lr, decoder_lr, step, epoch):
         if ddp.is_main_process():

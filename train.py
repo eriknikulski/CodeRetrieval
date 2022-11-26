@@ -123,9 +123,9 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         decoder_optimizer.step()
 
 
-def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch):
-    test_loss, correct = 0, 0
-    current_batch_size = const.BATCH_SIZE_TEST
+def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch):
+    valid_loss, correct = 0, 0
+    current_batch_size = const.BATCH_SIZE_VALID
 
     world_size = dist.get_world_size() if dist.is_initialized() else 1
     size = len(dataloader.dataset) / world_size
@@ -171,44 +171,45 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch):
                     current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
                 loss += current_loss
 
-            test_loss += loss.item() / target_length
+            valid_loss += loss.item() / target_length
             # calc percentage of correctly generated sequences
             results = torch.cat(output).view(1, -1, current_batch_size).permute(2, 1, 0)
             correct += get_correct(results, targets)
 
-    test_loss /= num_batches
+    valid_loss /= num_batches
     accuracy = correct / size
 
-    experiment.log_test_metrics(input_lang, output_lang, inputs[:5], results[:5], test_loss, accuracy,
-                                step=epoch, epoch=epoch)
+    experiment.log_valid_metrics(input_lang, output_lang, inputs[:5], results[:5], valid_loss, accuracy,
+                                 step=epoch, epoch=epoch)
+    return valid_loss
 
 
-def go_train(rank, world_size, experiment_name, port, train_data=None, test_data=None):
+def go_train(rank, world_size, experiment_name, port, train_data=None, valid_data=None):
     if rank is not None:
         ddp.setup(rank, world_size, port)
 
     if not train_data:
         with open(const.DATA_WORKING_TRAIN_PATH, 'rb') as train_file:
             train_data = pickle.load(train_file)
-    if not test_data:
-        with open(const.DATA_WORKING_TEST_PATH, 'rb') as test_file:
-            test_data = pickle.load(test_file)
+    if not valid_data:
+        with open(const.DATA_WORKING_VALID_PATH, 'rb') as valid_file:
+            valid_data = pickle.load(valid_file)
 
     input_lang = train_data.input_lang
     output_lang = train_data.output_lang
 
     train_sampler = None
-    test_sampler = None
+    valid_sampler = None
 
     experiment = Experiment(experiment_name)
-    experiment.log_initial_metrics(world_size, len(train_data), len(test_data), input_lang.n_words, output_lang.n_words)
+    experiment.log_initial_metrics(world_size, len(train_data), len(valid_data), input_lang.n_words, output_lang.n_words)
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
     decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, const.BATCH_SIZE, output_lang)
 
     if ddp.is_dist_avail_and_initialized():
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=const.SHUFFLE_DATA)
-        test_sampler = torch.utils.data.distributed.DistributedSampler(test_data, shuffle=const.SHUFFLE_DATA)
+        valid_sampler = torch.utils.data.distributed.DistributedSampler(valid_data, shuffle=const.SHUFFLE_DATA)
 
         encoder = DistributedDataParallel(encoder.to(const.DEVICE), device_ids=[rank])
         decoder = DistributedDataParallel(decoder.to(const.DEVICE), device_ids=[rank])
@@ -216,9 +217,9 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, test_data
     dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=shuffle,
                                    collate_fn=pad_collate.PadCollate(), sampler=train_sampler, drop_last=True,
                                    num_workers=const.NUM_WORKERS_DATALOADER)
-    test_dataloader = loader.DataLoader(test_data, batch_size=const.BATCH_SIZE, shuffle=shuffle,
-                                        collate_fn=pad_collate.PadCollate(), sampler=test_sampler, drop_last=True,
-                                        num_workers=const.NUM_WORKERS_DATALOADER)
+    valid_dataloader = loader.DataLoader(valid_data, batch_size=const.BATCH_SIZE, shuffle=shuffle,
+                                         collate_fn=pad_collate.PadCollate(), sampler=valid_sampler, drop_last=True,
+                                         num_workers=const.NUM_WORKERS_DATALOADER)
 
     loss_fn = nn.NLLLoss(reduction='none') if const.IGNORE_PADDING_IN_LOSS else nn.NLLLoss()
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
@@ -230,11 +231,11 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, test_data
     with profiler.Profiler(active=const.PROFILER_IS_ACTIVE) as p:
         for epoch in range(const.EPOCHS):
             print(f"Epoch {epoch + 1}\n-------------------------------")
-            if train_sampler and test_sampler:
+            if train_sampler and valid_sampler:
                 train_sampler.set_epoch(epoch)
-                test_sampler.set_epoch(epoch)
+                valid_sampler.set_epoch(epoch)
             train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch)
-            test_loop(encoder, decoder, test_dataloader, loss_fn, experiment, epoch)
+            valid_loop(encoder, decoder, valid_dataloader, loss_fn, experiment, epoch)
             experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
                                          decoder_optimizer.param_groups[0]['lr'], step=epoch, epoch=epoch)
             encoder_scheduler.step()
@@ -329,7 +330,7 @@ def run(args):
         ddp.run(go_train, const.CUDA_DEVICE_COUNT, experiment_name, port)
     else:
         if not args.last_data:
-            go_train(None, 1, experiment_name, port, train_data, test_data)
+            go_train(None, 1, experiment_name, port, train_data, valid_data)
         else:
             go_train(None, 1, experiment_name, port)
 
