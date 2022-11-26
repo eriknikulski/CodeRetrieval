@@ -102,7 +102,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
                 current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
             loss += current_loss
 
-        results = torch.cat(output).view(1, -1, current_batch_size).T
+        results = torch.cat(output).view(1, -1, current_batch_size).permute(2, 1, 0)
         accuracy = get_correct(results, targets) / current_batch_size
 
         loss /= target_length
@@ -173,7 +173,7 @@ def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch):
 
             test_loss += loss.item() / target_length
             # calc percentage of correctly generated sequences
-            results = torch.cat(output).view(1, -1, current_batch_size).T
+            results = torch.cat(output).view(1, -1, current_batch_size).permute(2, 1, 0)
             correct += get_correct(results, targets)
 
     test_loss /= num_batches
