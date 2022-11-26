@@ -35,24 +35,24 @@ def run(args):
     valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/', labels_only=const.LABELS_ONLY,
                                     build_language=False, remove_duplicates=remove_duplicates, to_tensors=False, sort=False)
 
-    if const.PREPROCESS_USE_BPE:
-        print('Creating training files...')
-        with open(const.PREPROCESS_BPE_TRAIN_PATH_DOC, 'w', encoding='utf-8') as train_file:
-            for text in train_data.df['docstring_tokens']:
+    print('Creating training files...')
+    with open(const.PREPROCESS_BPE_TRAIN_PATH_DOC, 'w', encoding='utf-8') as train_file:
+        for text in train_data.df['docstring_tokens']:
+            train_file.write(f'{" ".join(text)}\n')
+        for text in test_data.df['docstring_tokens']:
+            train_file.write(f'{" ".join(text)}\n')
+        for text in valid_data.df['docstring_tokens']:
+            train_file.write(f'{" ".join(text)}\n')
+    if not const.LABELS_ONLY:
+        with open(const.PREPROCESS_BPE_TRAIN_PATH_CODE, 'w', encoding='utf-8') as train_file:
+            for text in train_data.df['code_tokens']:
                 train_file.write(f'{" ".join(text)}\n')
-            for text in test_data.df['docstring_tokens']:
+            for text in test_data.df['code_tokens']:
                 train_file.write(f'{" ".join(text)}\n')
-            for text in valid_data.df['docstring_tokens']:
+            for text in valid_data.df['code_tokens']:
                 train_file.write(f'{" ".join(text)}\n')
-        if not const.LABELS_ONLY:
-            with open(const.PREPROCESS_BPE_TRAIN_PATH_CODE, 'w', encoding='utf-8') as train_file:
-                for text in train_data.df['code_tokens']:
-                    train_file.write(f'{" ".join(text)}\n')
-                for text in test_data.df['code_tokens']:
-                    train_file.write(f'{" ".join(text)}\n')
-                for text in valid_data.df['code_tokens']:
-                    train_file.write(f'{" ".join(text)}\n')
 
+    if const.PREPROCESS_USE_BPE:
         print('Creating codes files...')
         with open(const.PREPROCESS_BPE_TRAIN_PATH_DOC, encoding='utf-8') as train_file, \
                 open(const.PREPROCESS_BPE_CODES_PATH_DOC, 'w', encoding='utf-8') as codes_file:
