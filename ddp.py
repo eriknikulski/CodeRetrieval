@@ -26,6 +26,7 @@ def setup(rank, world_size, port):
     dist.init_process_group('nccl', rank=rank, world_size=world_size)
     const.DEVICE = f'cuda:{rank}'
     torch.cuda.set_device(const.DEVICE)
+    set_stdout()
     dist.barrier()
 
 
