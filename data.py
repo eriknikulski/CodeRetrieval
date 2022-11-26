@@ -53,12 +53,23 @@ class Lang:
         return self.seq_from_indices(el.item() for el in tensor)
 
     def reduce_vocab(self, min_freq):
-        for word, index in copy.deepcopy(self.word2index).items():
+        for word in self.word2index.keys():
             if self.word2count[word] < min_freq:
                 del self.word2count[word]
-                del self.word2index[word]
-                del self.index2word[index]
-                self.n_words -= 1
+        self.rebuild_indices()
+
+    def rebuild_indices(self):
+        self.word2index = {}
+        self.index2word = {
+            const.SOS_TOKEN: 'SOS',
+            const.EOS_TOKEN: 'EOS',
+            const.PAD_TOKEN: 'PAD',
+            const.OOV_TOKEN: 'OOV'}
+        self.n_words = 4
+        for word in self.word2count.keys():
+            self.word2index[word] = self.n_words
+            self.index2word[self.n_words] = word
+            self.n_words += 1
 
 
 def unicode_to_ascii(s):
