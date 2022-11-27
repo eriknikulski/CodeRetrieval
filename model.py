@@ -15,7 +15,8 @@ class EncoderRNN(nn.Module):
 
         self.embedding = nn.Embedding(input_size, hidden_size).to(const.DEVICE)
         self.lstm = nn.LSTM(hidden_size, hidden_size, const.ENCODER_LAYERS,
-                            bidirectional=True if const.BIDIRECTIONAL == 2 else False).to(const.DEVICE)
+                            bidirectional=True if const.BIDIRECTIONAL == 2 else False,
+                            dropout=const.LSTM_ENCODER_DROPOUT).to(const.DEVICE)
 
     def forward(self, input):
         rank = dist.get_rank() if dist.is_initialized() else None
@@ -43,7 +44,8 @@ class DecoderRNN(nn.Module):
 
         self.embedding = nn.Embedding(output_size, hidden_size).to(const.DEVICE)
         self.lstm = nn.LSTM(hidden_size, hidden_size, const.DECODER_LAYERS,
-                            bidirectional=True if const.BIDIRECTIONAL == 2 else False).to(const.DEVICE)
+                            bidirectional=True if const.BIDIRECTIONAL == 2 else False,
+                            dropout=const.LSTM_DECODER_DROPOUT).to(const.DEVICE)
         self.out = nn.Linear(const.BIDIRECTIONAL * hidden_size, output_size).to(const.DEVICE)
         self.softmax = nn.LogSoftmax(dim=1).to(const.DEVICE)
 

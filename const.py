@@ -89,6 +89,8 @@ MAX_LENGTH_CODE = 100
 ENCODER_LAYERS = 2
 DECODER_LAYERS = 2
 BIDIRECTIONAL = 2
+LSTM_ENCODER_DROPOUT = 0.3
+LSTM_DECODER_DROPOUT = 0.3
 HIDDEN_SIZE = 256
 
 LEARNING_RATE = 0.01
@@ -128,6 +130,8 @@ def get_hyperparams(params=None):
         'model   encoder_layers': ENCODER_LAYERS,
         'model   decoder_layers': DECODER_LAYERS,
         'model   bidirectional': BIDIRECTIONAL,
+        'model   lstm_encoder_dropout': LSTM_ENCODER_DROPOUT,
+        'model   lstm_decoder_dropout': LSTM_DECODER_DROPOUT,
         'model   hidden_size': HIDDEN_SIZE,
 
         'training   learning_rate': LEARNING_RATE,
