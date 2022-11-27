@@ -78,6 +78,7 @@ IGNORE_PADDING_IN_LOSS = False
 SHUFFLE_DATA = True
 CUDA_DEVICE_COUNT = 0
 NUM_WORKERS_DATALOADER = 0
+PIN_MEMORY = True
 
 MIN_NUM_TOKENS = 5
 MIN_LENGTH_DOCSTRING = 3
@@ -116,6 +117,7 @@ def get_hyperparams(params=None):
         'setup   shuffle_data': SHUFFLE_DATA,
         'setup   cuda_device_count': CUDA_DEVICE_COUNT,
         'setup   num_workers_dataloader': NUM_WORKERS_DATALOADER,
+        'setup   pin_memory': PIN_MEMORY,
 
         'data   min_num_tokens': MIN_NUM_TOKENS,
         'data   min_length_docstring': MIN_LENGTH_DOCSTRING,

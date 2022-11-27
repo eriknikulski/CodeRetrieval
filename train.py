@@ -216,10 +216,10 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
     shuffle = const.SHUFFLE_DATA if (train_sampler is None) else None
     dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=shuffle,
                                    collate_fn=pad_collate.PadCollate(), sampler=train_sampler, drop_last=True,
-                                   num_workers=const.NUM_WORKERS_DATALOADER)
+                                   num_workers=const.NUM_WORKERS_DATALOADER, pin_memory=const.PIN_MEMORY)
     valid_dataloader = loader.DataLoader(valid_data, batch_size=const.BATCH_SIZE, shuffle=shuffle,
                                          collate_fn=pad_collate.PadCollate(), sampler=valid_sampler, drop_last=True,
-                                         num_workers=const.NUM_WORKERS_DATALOADER)
+                                         num_workers=const.NUM_WORKERS_DATALOADER, pin_memory=const.PIN_MEMORY)
 
     loss_fn = nn.NLLLoss(reduction='none') if const.IGNORE_PADDING_IN_LOSS else nn.NLLLoss()
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
