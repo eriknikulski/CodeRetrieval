@@ -184,7 +184,7 @@ def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch):
     if experiment:
         experiment.log_valid_metrics(input_lang, output_lang, inputs[:5], results[:5], valid_loss, accuracy,
                                      step=epoch, epoch=epoch)
-    return valid_loss
+    return valid_loss, accuracy
 
 
 def go_train(rank, world_size, experiment_name, port, train_data=None, valid_data=None):
