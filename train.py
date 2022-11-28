@@ -187,6 +187,10 @@ def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, device=
     return valid_loss, accuracy
 
 
+def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, device=const.DEVICE):
+    return valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, device)
+
+
 def go_train(rank, world_size, experiment_name, port, train_data=None, valid_data=None):
     if rank is not None:
         ddp.setup(rank, world_size, port)
