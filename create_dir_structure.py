@@ -5,26 +5,26 @@ import const
 
 def create_dirs():
     print('Creating directory structure...')
-    pathlib.Path(const.PROJECT_PATH + 'data/java/').mkdir(parents=True, exist_ok=True)
-    pathlib.Path(const.PROJECT_PATH + 'data/synthetic/train/').mkdir(parents=True, exist_ok=True)
-    pathlib.Path(const.PROJECT_PATH + 'data/synthetic/test/').mkdir(parents=True, exist_ok=True)
-    pathlib.Path(const.PROJECT_PATH + 'data/synthetic/valid/').mkdir(parents=True, exist_ok=True)
+    paths = [
+        const.PROJECT_PATH + 'data/java/',
+        const.PROJECT_PATH + 'data/synthetic/train/',
+        const.PROJECT_PATH + 'data/synthetic/test/',
+        const.PROJECT_PATH + 'data/synthetic/valid/',
+        const.EVAL_PATH,
+        const.DATA_WORKING_PATH,
+        const.PREPROCESS_BPE_TRAIN_PATH,
+        const.PREPROCESS_BPE_CODES_PATH,
+        const.PREPROCESS_BPE_VOCAB_PATH,
+        const.MODEL_PATH,
+        const.CHECKPOINT_PATH,
+        const.ANALYZE_PATH,
+        const.PROFILER_TRACE_PATH,
+        const.PROFILER_STACKS_PATH,
+    ]
 
-    pathlib.Path(const.EVAL_PATH).mkdir(parents=True, exist_ok=True)
+    for path in paths:
+        pathlib.Path(path).mkdir(parents=True, exist_ok=True)
 
-    pathlib.Path(const.DATA_WORKING_PATH).mkdir(parents=True, exist_ok=True)
-
-    pathlib.Path(const.PREPROCESS_BPE_TRAIN_PATH).mkdir(parents=True, exist_ok=True)
-    pathlib.Path(const.PREPROCESS_BPE_CODES_PATH).mkdir(parents=True, exist_ok=True)
-    pathlib.Path(const.PREPROCESS_BPE_VOCAB_PATH).mkdir(parents=True, exist_ok=True)
-
-    pathlib.Path(const.MODEL_PATH).mkdir(parents=True, exist_ok=True)
-    pathlib.Path(const.CHECKPOINT_PATH).mkdir(parents=True, exist_ok=True)
-
-    pathlib.Path(const.ANALYZE_PATH).mkdir(parents=True, exist_ok=True)
-
-    pathlib.Path(const.PROFILER_TRACE_PATH).mkdir(parents=True, exist_ok=True)
-    pathlib.Path(const.PROFILER_STACKS_PATH).mkdir(parents=True, exist_ok=True)
     print('Finished.')
 
 
