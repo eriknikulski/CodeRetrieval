@@ -117,9 +117,10 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
                                      max_norm=const.GRADIENT_CLIPPING_MAX_NORM,
                                      norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
 
-        experiment.log_train_metrics(loss.item(), get_grad_norm(encoder), get_grad_norm(encoder), input_length,
-                                     accuracy,
-                                     step=epoch * size / world_size / const.BATCH_SIZE + batch, epoch=epoch)
+        if experiment:
+            experiment.log_train_metrics(loss.item(), get_grad_norm(encoder), get_grad_norm(encoder), input_length,
+                                         accuracy,
+                                         step=epoch * size / world_size / const.BATCH_SIZE + batch, epoch=epoch)
         encoder_optimizer.step()
         decoder_optimizer.step()
 
@@ -180,8 +181,9 @@ def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch):
     valid_loss /= num_batches
     accuracy = correct / size
 
-    experiment.log_valid_metrics(input_lang, output_lang, inputs[:5], results[:5], valid_loss, accuracy,
-                                 step=epoch, epoch=epoch)
+    if experiment:
+        experiment.log_valid_metrics(input_lang, output_lang, inputs[:5], results[:5], valid_loss, accuracy,
+                                     step=epoch, epoch=epoch)
     return valid_loss
 
 
