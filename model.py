@@ -1,5 +1,4 @@
 import torch
-import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -19,7 +18,6 @@ class EncoderRNN(nn.Module):
                             dropout=const.LSTM_ENCODER_DROPOUT).to(const.DEVICE)
 
     def forward(self, input):
-        rank = dist.get_rank() if dist.is_initialized() else None
         hidden = (torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, self.batch_size, self.hidden_size, device=const.DEVICE),
                   torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, self.batch_size, self.hidden_size, device=const.DEVICE))
         embedded = self.embedding(input).transpose(0, 1)
