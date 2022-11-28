@@ -61,7 +61,7 @@ def get_correct(results, targets):
 
 
 @print_time()
-def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch):
+def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch, device=const.DEVICE):
     size = len(dataloader.dataset)
     current_batch_size = const.BATCH_SIZE
     world_size = dist.get_world_size() if dist.is_initialized() else 1
@@ -70,7 +70,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
     decoder.train()
 
     for batch, (inputs, targets, urls) in enumerate(dataloader):
-        inputs, targets = inputs.to(const.DEVICE), targets.to(const.DEVICE)
+        inputs, targets = inputs.to(device), targets.to(device)
 
         loss = 0
         output = []
@@ -82,10 +82,10 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
 
         encoder_output, encoder_hidden = encoder(inputs)
 
-        decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=const.DEVICE)
+        decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=device)
         decoder_hidden = (encoder_hidden[0],
                           torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
-                                      device=const.DEVICE))
+                                      device=device))
 
         for di in range(target_length):
             decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
@@ -99,7 +99,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
 
             if const.IGNORE_PADDING_IN_LOSS:
                 loss_mask = current_target != const.PAD_TOKEN
-                loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=const.DEVICE))
+                loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=device))
                 current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
             loss += current_loss
 
@@ -125,7 +125,7 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         decoder_optimizer.step()
 
 
-def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch):
+def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, device=const.DEVICE):
     valid_loss, correct = 0, 0
     current_batch_size = const.BATCH_SIZE_VALID
 
@@ -143,7 +143,7 @@ def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch):
 
     with torch.no_grad():
         for inputs, targets, urls in dataloader:
-            inputs, targets = inputs.to(const.DEVICE), targets.to(const.DEVICE)
+            inputs, targets = inputs.to(device), targets.to(device)
 
             target_length = targets[0].size(0)
             loss = 0
@@ -151,11 +151,11 @@ def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch):
 
             _, encoder_hidden = encoder(inputs)
 
-            decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=const.DEVICE)
+            decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=device)
             decoder_hidden = (encoder_hidden[0],
                               torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size,
                                           const.HIDDEN_SIZE,
-                                          device=const.DEVICE))
+                                          device=device))
 
             for di in range(target_length):
                 decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
@@ -169,7 +169,7 @@ def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch):
 
                 if const.IGNORE_PADDING_IN_LOSS:
                     loss_mask = current_target != const.PAD_TOKEN
-                    loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=const.DEVICE))
+                    loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=device))
                     current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
                 loss += current_loss
 
