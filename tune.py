@@ -25,8 +25,8 @@ def tune_train(config, checkpoint_dir=None):
     input_lang = train_data.input_lang
     output_lang = train_data.output_lang
 
-    encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
-    decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, const.BATCH_SIZE, output_lang)
+    encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, config['batch_size'], input_lang)
+    decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, config['batch_size'], output_lang)
 
     device = 'cpu'
     if torch.cuda.is_available():
