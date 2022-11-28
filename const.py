@@ -79,6 +79,8 @@ SHUFFLE_DATA = True
 CUDA_DEVICE_COUNT = 0
 NUM_WORKERS_DATALOADER = 0
 PIN_MEMORY = True
+MIN_CHECKPOINT_EPOCH = 500
+MIN_CHECKPOINT_EPOCH_DIST = 100
 
 MIN_NUM_TOKENS = 5
 MIN_LENGTH_DOCSTRING = 3
@@ -120,6 +122,8 @@ def get_hyperparams(params=None):
         'setup   cuda_device_count': CUDA_DEVICE_COUNT,
         'setup   num_workers_dataloader': NUM_WORKERS_DATALOADER,
         'setup   pin_memory': PIN_MEMORY,
+        'setup   min_checkpoint_epoch': MIN_CHECKPOINT_EPOCH,
+        'setup   min_checkpoint_epoch_dist': MIN_CHECKPOINT_EPOCH_DIST,
 
         'data   min_num_tokens': MIN_NUM_TOKENS,
         'data   min_length_docstring': MIN_LENGTH_DOCSTRING,

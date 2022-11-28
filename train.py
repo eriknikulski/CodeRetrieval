@@ -12,6 +12,7 @@ import torch.nn as nn
 from torch import optim
 from torch.nn.parallel import DistributedDataParallel
 
+import save
 from comet import Experiment
 import const
 import data
@@ -234,25 +235,23 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
             if train_sampler and valid_sampler:
                 train_sampler.set_epoch(epoch)
                 valid_sampler.set_epoch(epoch)
+
             train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch)
-            valid_loop(encoder, decoder, valid_dataloader, loss_fn, experiment, epoch)
+            valid_loss = valid_loop(encoder, decoder, valid_dataloader, loss_fn, experiment, epoch)
+
             experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
                                          decoder_optimizer.param_groups[0]['lr'], step=epoch, epoch=epoch)
+            save.checkpoint_models(epoch, encoder, encoder_optimizer, decoder, decoder_optimizer, valid_loss,
+                                   const.MODEL_PATH + const.SLURM_JOB_ID)
+
             encoder_scheduler.step()
             decoder_scheduler.step()
             p.step()
 
-    save(encoder, decoder)
+    save.models(encoder, decoder)
     if ddp.is_dist_avail_and_initialized():
         ddp.cleanup()
     experiment.end()
-
-
-def save(encoder, decoder):
-    ddp.save_on_master(encoder.state_dict(), const.MODEL_ENCODER_PATH)
-    ddp.save_on_master(decoder.state_dict(), const.MODEL_DECODER_PATH)
-
-    print('saved models')
 
 
 @print_time('\nTotal ')

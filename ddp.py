@@ -49,11 +49,6 @@ def is_dist_avail_and_initialized():
     return True
 
 
-def save_on_master(*args, **kwargs):
-    if is_main_process():
-        torch.save(*args, **kwargs)
-
-
 def get_rank():
     if not is_dist_avail_and_initialized():
         return 0
