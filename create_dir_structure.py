@@ -19,6 +19,7 @@ def create_dirs():
     pathlib.Path(const.PREPROCESS_BPE_VOCAB_PATH).mkdir(parents=True, exist_ok=True)
 
     pathlib.Path(const.MODEL_PATH).mkdir(parents=True, exist_ok=True)
+    pathlib.Path(const.CHECKPOINT_PATH).mkdir(parents=True, exist_ok=True)
 
     pathlib.Path(const.ANALYZE_PATH).mkdir(parents=True, exist_ok=True)
 
