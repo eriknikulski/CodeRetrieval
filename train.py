@@ -55,8 +55,9 @@ def get_grad_norm(model):
 
 def get_correct(results, targets):
     targets_mask = targets != const.PAD_TOKEN
-    results_masked = results.where(targets_mask, torch.tensor(-1, device=const.DEVICE))
-    targets_masked = targets.where(targets_mask, torch.tensor(-1, device=const.DEVICE))
+    device = targets.device
+    results_masked = results.where(targets_mask, torch.tensor(-1, device=device))
+    targets_masked = targets.where(targets_mask, torch.tensor(-1, device=device))
     return (results_masked == targets_masked).all(axis=1).sum().item()
 
 
