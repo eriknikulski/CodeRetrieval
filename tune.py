@@ -31,6 +31,8 @@ def tune_train(config, checkpoint_dir=None):
     device = 'cpu'
     if torch.cuda.is_available():
         device = 'cuda:0'
+        encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, config['batch_size'], input_lang, device=device)
+        decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, config['batch_size'], output_lang, device=device)
         if torch.cuda.device_count() > 1:
             encoder = nn.DataParallel(encoder)
             decoder = nn.DataParallel(decoder)
@@ -55,10 +57,20 @@ def tune_train(config, checkpoint_dir=None):
         decoder.load_state_dict(decoder_state)
         encoder_optimizer.load_state_dict(encoder_optimizer_state)
         decoder_optimizer.load_state_dict(decoder_optimizer_state)
+        
+    if hasattr(encoder, 'setBatchSize') and callable(encoder.setBatchSize):
+        encoder.setBatchSize(config['batch_size'])
+        decoder.setBatchSize(config['batch_size'])
+    else:
+        encoder.module.setBatchSize(config['batch_size'])
+        decoder.module.setBatchSize(config['batch_size'])
 
     for epoch in range(10):
-        train.train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, None, epoch)
-        valid_loss, valid_acc = train.valid_loop(encoder, decoder, valid_dataloader, loss_fn, None, epoch)
+        train.train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, 
+                         experiment=None, epoch=epoch, batch_size=config['batch_size'], device=device)
+        valid_loss, valid_acc = train.valid_loop(encoder, decoder, valid_dataloader, loss_fn,
+                                                 experiment=None, epoch=epoch, batch_size=config['batch_size'],
+                                                 device=device)
 
         with tune.checkpoint_dir(epoch) as checkpoint_dir:
             path = os.path.join(checkpoint_dir, 'checkpoint')
@@ -76,30 +88,34 @@ def run_test(best_trial, gpus_per_trial):
     input_lang = test_data.input_lang
     output_lang = test_data.output_lang
 
-    best_encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
-    best_decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, const.BATCH_SIZE, output_lang)
+    batch_size = int(best_trial.config['batch_size'])
+    best_encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, batch_size, input_lang)
+    best_decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, batch_size, output_lang)
     device = 'cpu'
     if torch.cuda.is_available():
         device = 'cuda:0'
+        best_encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, batch_size, input_lang, device=device)
+        best_decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, batch_size, output_lang, device=device)
         if gpus_per_trial > 1:
             best_encoder = nn.DataParallel(best_encoder)
             best_decoder = nn.DataParallel(best_decoder)
     best_encoder.to(device)
     best_decoder.to(device)
 
-    best_checkpoint_dir = best_trial.checkpoint.value
+    best_checkpoint_dir = best_trial.checkpoint.dir_or_data
+    print(f'Best checkpoint dir: {best_checkpoint_dir}')
     encoder_state, decoder_state, _, _ = torch.load(os.path.join(best_checkpoint_dir, 'checkpoint'))
     best_encoder.load_state_dict(encoder_state)
     best_decoder.load_state_dict(decoder_state)
 
-    dataloader = loader.DataLoader(test_data, batch_size=int(best_trial.config['batch_size']), shuffle=True,
+    dataloader = loader.DataLoader(test_data, batch_size=batch_size, shuffle=True,
                                    collate_fn=pad_collate.PadCollate(), drop_last=True,
                                    num_workers=const.NUM_WORKERS_DATALOADER)
 
     loss_fn = nn.NLLLoss(reduction='none') if const.IGNORE_PADDING_IN_LOSS else nn.NLLLoss()
 
-    test_loss, test_acc = train.test_loop(best_encoder, best_decoder, dataloader, loss_fn, experiment=None, epoch=0,
-                                          device=device)
+    test_loss, test_acc = train.test_loop(best_encoder, best_decoder, dataloader, loss_fn, 
+                                          experiment=None, epoch=0, batch_size=batch_size, device=device)
     print(f'Best trial test set accuracy: {test_acc}')
     return test_acc
 
@@ -120,6 +136,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     result = tune.run(
         partial(tune_train),
         resources_per_trial={'cpu': 2, 'gpu': gpus_per_trial},
+        local_dir=const.RAY_TUNE_LOCAL_DIR,
         config=config,
         num_samples=num_samples,
         scheduler=scheduler,
