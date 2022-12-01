@@ -62,9 +62,8 @@ def get_correct(results, targets):
 
 
 @print_time()
-def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch, device=const.DEVICE):
+def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch, batch_size=const.BATCH_SIZE, device=const.DEVICE):
     size = len(dataloader.dataset)
-    current_batch_size = const.BATCH_SIZE
     world_size = dist.get_world_size() if dist.is_initialized() else 1
 
     encoder.train()
@@ -83,9 +82,9 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
 
         encoder_output, encoder_hidden = encoder(inputs)
 
-        decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=device)
+        decoder_input = torch.tensor([[const.SOS_TOKEN] * batch_size], device=device)
         decoder_hidden = (encoder_hidden[0],
-                          torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size, const.HIDDEN_SIZE,
+                          torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, batch_size, const.HIDDEN_SIZE,
                                       device=device))
 
         for di in range(target_length):
@@ -104,8 +103,8 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
                 current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
             loss += current_loss
 
-        results = torch.cat(output).view(1, -1, current_batch_size).permute(2, 1, 0)
-        accuracy = get_correct(results, targets) / current_batch_size
+        results = torch.cat(output).view(1, -1, batch_size).permute(2, 1, 0)
+        accuracy = get_correct(results, targets) / batch_size
 
         loss /= target_length
         loss.backward()
@@ -121,18 +120,17 @@ def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder
         if experiment:
             experiment.log_train_metrics(loss.item(), get_grad_norm(encoder), get_grad_norm(encoder), input_length,
                                          accuracy,
-                                         step=epoch * size / world_size / const.BATCH_SIZE + batch, epoch=epoch)
+                                         step=epoch * size / world_size / batch_size + batch, epoch=epoch)
         encoder_optimizer.step()
         decoder_optimizer.step()
 
 
-def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, device=const.DEVICE):
+def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, batch_size=const.BATCH_SIZE_VALID, device=const.DEVICE):
     valid_loss, correct = 0, 0
-    current_batch_size = const.BATCH_SIZE_VALID
 
     world_size = dist.get_world_size() if dist.is_initialized() else 1
     size = len(dataloader.dataset) / world_size
-    num_batches = int(size / current_batch_size)
+    num_batches = int(size / batch_size)
 
     input_lang = dataloader.dataset.input_lang
     output_lang = dataloader.dataset.output_lang
@@ -152,10 +150,9 @@ def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, device=
 
             _, encoder_hidden = encoder(inputs)
 
-            decoder_input = torch.tensor([[const.SOS_TOKEN] * current_batch_size], device=device)
+            decoder_input = torch.tensor([[const.SOS_TOKEN] * batch_size], device=device)
             decoder_hidden = (encoder_hidden[0],
-                              torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, current_batch_size,
-                                          const.HIDDEN_SIZE,
+                              torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, batch_size, const.HIDDEN_SIZE,
                                           device=device))
 
             for di in range(target_length):
@@ -176,7 +173,7 @@ def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, device=
 
             valid_loss += loss.item() / target_length
             # calc percentage of correctly generated sequences
-            results = torch.cat(output).view(1, -1, current_batch_size).permute(2, 1, 0)
+            results = torch.cat(output).view(1, -1, batch_size).permute(2, 1, 0)
             correct += get_correct(results, targets)
 
     valid_loss /= num_batches
@@ -188,8 +185,8 @@ def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, device=
     return valid_loss, accuracy
 
 
-def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, device=const.DEVICE):
-    return valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, device)
+def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, batch_size=const.BATCH_SIZE_TEST, device=const.DEVICE):
+    return valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, batch_size, device)
 
 
 def go_train(rank, world_size, experiment_name, port, train_data=None, valid_data=None):

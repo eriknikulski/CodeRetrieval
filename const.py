@@ -101,6 +101,7 @@ MOMENTUM = 0.9
 EPOCHS = 200
 BATCH_SIZE = 256
 BATCH_SIZE_VALID = 256
+BATCH_SIZE_TEST = 256
 LR_STEP_SIZE = 100
 LR_GAMMA = 0.1
 GRADIENT_CLIPPING_ENABLED = True
@@ -144,6 +145,7 @@ def get_hyperparams(params=None):
         'training   epochs': EPOCHS,
         'training   batch_size': BATCH_SIZE,
         'training   batch_size_valid': BATCH_SIZE_VALID,
+        'training   batch_size_test': BATCH_SIZE_TEST,
         'training   lr_step_size': LR_STEP_SIZE,
         'training   lr_gamma': LR_GAMMA,
         'training   gradient_clipping_enabled': GRADIENT_CLIPPING_ENABLED,
