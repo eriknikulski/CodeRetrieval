@@ -78,3 +78,29 @@ class DecoderRNN(nn.Module):
     def to(self, device):
         super(DecoderRNN, self).to(device)
         self.device = device
+
+
+class DecoderRNNWrapped(nn.Module):
+    def __init__(self, hidden_size, output_size, batch_size, lang, bidirectional=const.BIDIRECTIONAL, 
+                 layers=const.DECODER_LAYERS, dropout=const.LSTM_DECODER_DROPOUT, device=const.DEVICE):
+        super(DecoderRNNWrapped, self).__init__()
+        self.decoder = DecoderRNN(hidden_size, output_size, batch_size, lang, bidirectional, layers, dropout, device)
+
+    def forward(self, encoder_hidden, target_length):
+        decoder_input = torch.tensor([[const.SOS_TOKEN] * self.decoder.batch_size], device=self.decoder.device)
+        decoder_hidden = (encoder_hidden,
+                          torch.zeros(self.decoder.bidirectional * self.decoder.layers, self.decoder.batch_size, 
+                                      self.decoder.hidden_size, device=self.decoder.device))
+
+        decoder_outputs = []
+        output_seqs = []
+
+        for di in range(target_length):
+            decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden)
+            topv, topi = decoder_output.topk(1)
+            decoder_input = topi.squeeze().detach()  # detach from history as input
+
+            decoder_outputs.append(decoder_output)
+            output_seqs.append(topi.detach())
+
+        return decoder_outputs, output_seqs

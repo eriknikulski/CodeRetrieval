@@ -69,6 +69,24 @@ def get_correct(results, targets):
     return (results_masked == targets_masked).all(axis=1).sum().item()
 
 
+def get_decoder_loss(loss_fn, decoder_outputs, targets, ignore_padding=const.IGNORE_PADDING_IN_LOSS):
+    loss = 0
+    device = targets[0].device
+    target_length = targets[0].size(0)
+
+    for i in range(target_length):
+        current_target = targets[:, i].flatten()
+        decoder_output = decoder_outputs[i]
+        current_loss = loss_fn(decoder_output, current_target)
+    
+        if ignore_padding:
+            loss_mask = current_target != const.PAD_TOKEN
+            loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=device))
+            current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
+        loss += current_loss
+    return loss / target_length
+
+
 def go(mode: Mode, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment=None, epoch=0):
     encoder, encoder_optimizer = encoder_tuple
     decoder, decoder_optimizer = decoder_tuple
@@ -107,29 +125,8 @@ def go(mode: Mode, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, ex
         target_length = targets[0].size(0)
 
         encoder_output, encoder_hidden = encoder(inputs)
-
-        decoder_input = torch.tensor([[const.SOS_TOKEN] * config['batch_size']], device=config['device'])
-        decoder_hidden = (encoder_hidden[0],
-                          torch.zeros(config['bidirectional'] * config['encoder_layers'], config['batch_size'], 
-                                      config['hidden_size'], device=config['device']))
-
-        for di in range(target_length):
-            decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
-            topv, topi = decoder_output.topk(1)
-            decoder_input = topi.squeeze().detach()  # detach from history as input
-
-            batch_output.append(topi.detach())
-
-            current_target = targets[:, di].flatten()
-            current_loss = loss_fn(decoder_output, current_target)
-
-            if config['ignore_padding_in_loss']:
-                loss_mask = current_target != const.PAD_TOKEN
-                loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=config['device']))
-                current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
-            batch_loss += current_loss
-
-        batch_loss /= target_length
+        decoder_outputs, output_seqs = decoder(encoder_hidden[0], target_length)
+        batch_loss = get_decoder_loss(loss_fn, decoder_outputs, targets, config['ignore_padding_in_loss'])
         
         if mode == Mode.TRAIN:
             batch_loss.backward()
@@ -146,7 +143,7 @@ def go(mode: Mode, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, ex
         batch_loss = batch_loss.item()
         epoch_loss += batch_loss
         # calc percentage of correctly generated sequences
-        results = torch.cat(batch_output).view(1, -1, config['batch_size']).permute(2, 1, 0)
+        results = torch.cat(output_seqs).view(1, -1, config['batch_size']).permute(2, 1, 0)
         batch_accuracy = get_correct(results, targets) / config['batch_size']
         epoch_accuracy += batch_accuracy
 
@@ -199,7 +196,7 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
     experiment.log_initial_metrics(world_size, len(train_data), len(valid_data), input_lang.n_words, output_lang.n_words)
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
-    decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, const.BATCH_SIZE, output_lang)
+    decoder = model.DecoderRNNWrapped(const.HIDDEN_SIZE, output_lang.n_words, const.BATCH_SIZE, output_lang)
 
     if ddp.is_dist_avail_and_initialized():
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=const.SHUFFLE_DATA)
