@@ -4,6 +4,7 @@ import pickle
 import random
 import string
 import time
+from enum import Enum
 
 import comet_ml
 import torch
@@ -12,6 +13,7 @@ import torch.nn as nn
 from torch import optim
 from torch.nn.parallel import DistributedDataParallel
 
+import comet
 import save
 from comet import Experiment
 import const
@@ -30,6 +32,12 @@ parser.add_argument('-ld', '--load-data', action='store_true', default=False, he
 parser.add_argument('-kd', '--keep-duplicates', action='store_true', default=False, help='Do not remove duplicates in data.')
 parser.add_argument('-g', '--gpu', action='store_true', default=False, help='Run on GPU(s).')
 parser.add_argument('-lad', '--last-data', action='store_true', default=False, help='Use last working dataset.')
+
+
+class Mode(Enum):
+    TRAIN = 'train'
+    VALID = 'valid'
+    TEST = 'test'
 
 
 def print_time(prefix=''):
@@ -61,132 +69,113 @@ def get_correct(results, targets):
     return (results_masked == targets_masked).all(axis=1).sum().item()
 
 
-@print_time()
-def train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch, batch_size=const.BATCH_SIZE, device=const.DEVICE):
-    size = len(dataloader.dataset)
+def go(mode: Mode, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment=None, epoch=0):
+    encoder, encoder_optimizer = encoder_tuple
+    decoder, decoder_optimizer = decoder_tuple
+
+    input_lang = dataloader.dataset.input_lang
+    output_lang = dataloader.dataset.output_lang
+
     world_size = dist.get_world_size() if dist.is_initialized() else 1
-
-    encoder.train()
-    decoder.train()
-
+    size = len(dataloader.dataset) / world_size
+    num_batches = int(size / config['batch_size'])
+    
+    epoch_loss = 0
+    epoch_accuracy = 0
+    inputs = None
+    results = None
+    
+    if mode == Mode.TRAIN:
+        encoder.train()
+        decoder.train()
+    else:
+        encoder.eval()
+        decoder.eval()
+        torch.set_grad_enabled(False)
+    
     for batch, (inputs, targets, urls) in enumerate(dataloader):
-        inputs, targets = inputs.to(device), targets.to(device)
+        inputs, targets = inputs.to(config['device']), targets.to(config['device'])
 
-        loss = 0
-        output = []
-        encoder_optimizer.zero_grad()
-        decoder_optimizer.zero_grad()
+        batch_loss = 0
+        batch_output = []
+        
+        if mode == Mode.TRAIN:
+            encoder_optimizer.zero_grad()
+            decoder_optimizer.zero_grad()
 
         input_length = inputs[0].size(0)
         target_length = targets[0].size(0)
 
         encoder_output, encoder_hidden = encoder(inputs)
 
-        decoder_input = torch.tensor([[const.SOS_TOKEN] * batch_size], device=device)
+        decoder_input = torch.tensor([[const.SOS_TOKEN] * config['batch_size']], device=config['device'])
         decoder_hidden = (encoder_hidden[0],
-                          torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, batch_size, const.HIDDEN_SIZE,
-                                      device=device))
+                          torch.zeros(config['bidirectional'] * config['encoder_layers'], config['batch_size'], 
+                                      config['hidden_size'], device=config['device']))
 
         for di in range(target_length):
             decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
             topv, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
-            output.append(topi.detach())
+            batch_output.append(topi.detach())
 
             current_target = targets[:, di].flatten()
             current_loss = loss_fn(decoder_output, current_target)
 
-            if const.IGNORE_PADDING_IN_LOSS:
+            if config['ignore_padding_in_loss']:
                 loss_mask = current_target != const.PAD_TOKEN
-                loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=device))
+                loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=config['device']))
                 current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
-            loss += current_loss
+            batch_loss += current_loss
 
-        results = torch.cat(output).view(1, -1, batch_size).permute(2, 1, 0)
-        accuracy = get_correct(results, targets) / batch_size
+        batch_loss /= target_length
+        
+        if mode == Mode.TRAIN:
+            batch_loss.backward()
+            if config['grad_clipping_enabled']:
+                nn.utils.clip_grad_norm_(encoder.parameters(),
+                                         max_norm=config['grad_clipping_max_norm'],
+                                         norm_type=config['grad_clipping_norm_type'])
+                nn.utils.clip_grad_norm_(decoder.parameters(),
+                                         max_norm=config['grad_clipping_max_norm'],
+                                         norm_type=config['grad_clipping_norm_type'])
+            encoder_optimizer.step()
+            decoder_optimizer.step()
 
-        loss /= target_length
-        loss.backward()
+        batch_loss = batch_loss.item()
+        epoch_loss += batch_loss
+        # calc percentage of correctly generated sequences
+        results = torch.cat(batch_output).view(1, -1, config['batch_size']).permute(2, 1, 0)
+        batch_accuracy = get_correct(results, targets) / config['batch_size']
+        epoch_accuracy += batch_accuracy
 
-        if const.GRADIENT_CLIPPING_ENABLED:
-            nn.utils.clip_grad_norm_(encoder.parameters(),
-                                     max_norm=const.GRADIENT_CLIPPING_MAX_NORM,
-                                     norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
-            nn.utils.clip_grad_norm_(decoder.parameters(),
-                                     max_norm=const.GRADIENT_CLIPPING_MAX_NORM,
-                                     norm_type=const.GRADIENT_CLIPPING_NORM_TYPE)
-
-        if experiment:
-            experiment.log_train_metrics(loss.item(), get_grad_norm(encoder), get_grad_norm(encoder), input_length,
-                                         accuracy,
-                                         step=epoch * size / world_size / batch_size + batch, epoch=epoch)
-        encoder_optimizer.step()
-        decoder_optimizer.step()
-
-
-def valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, batch_size=const.BATCH_SIZE_VALID, device=const.DEVICE):
-    valid_loss, correct = 0, 0
-
-    world_size = dist.get_world_size() if dist.is_initialized() else 1
-    size = len(dataloader.dataset) / world_size
-    num_batches = int(size / batch_size)
-
-    input_lang = dataloader.dataset.input_lang
-    output_lang = dataloader.dataset.output_lang
-
-    inputs = None
-
-    encoder.eval()
-    decoder.eval()
-
-    with torch.no_grad():
-        for inputs, targets, urls in dataloader:
-            inputs, targets = inputs.to(device), targets.to(device)
-
-            target_length = targets[0].size(0)
-            loss = 0
-            output = []
-
-            _, encoder_hidden = encoder(inputs)
-
-            decoder_input = torch.tensor([[const.SOS_TOKEN] * batch_size], device=device)
-            decoder_hidden = (encoder_hidden[0],
-                              torch.zeros(const.BIDIRECTIONAL * const.ENCODER_LAYERS, batch_size, const.HIDDEN_SIZE,
-                                          device=device))
-
-            for di in range(target_length):
-                decoder_output, decoder_hidden = decoder(decoder_input, decoder_hidden)
-                topv, topi = decoder_output.topk(1)
-                decoder_input = topi.squeeze().detach()  # detach from history as input
-
-                output.append(topi.detach())
-
-                current_target = targets[:, di].flatten()
-                current_loss = loss_fn(decoder_output, current_target)
-
-                if const.IGNORE_PADDING_IN_LOSS:
-                    loss_mask = current_target != const.PAD_TOKEN
-                    loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=device))
-                    current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
-                loss += current_loss
-
-            valid_loss += loss.item() / target_length
-            # calc percentage of correctly generated sequences
-            results = torch.cat(output).view(1, -1, batch_size).permute(2, 1, 0)
-            correct += get_correct(results, targets)
-
-    valid_loss /= num_batches
-    accuracy = correct / size
-
+        if experiment and mode == Mode.TRAIN and const.LOG_BATCHES:
+            print('log batch')
+            experiment.log_batch_metrics(mode.value, batch_loss, batch_accuracy, get_grad_norm(encoder), 
+                                         get_grad_norm(decoder), step=epoch * size / config['batch_size'] + batch)
+            
+    epoch_loss /= num_batches
+    epoch_accuracy /= num_batches
+    
     if experiment:
-        experiment.log_valid_metrics(input_lang, output_lang, inputs[:5], results[:5], valid_loss, accuracy,
-                                     step=epoch, epoch=epoch)
-    return valid_loss, accuracy
+        translations = comet.generate_text_seq(input_lang, output_lang, inputs[:5], results[:5], epoch)
+        experiment.log_epoch_metrics(mode.value, epoch_loss, epoch_accuracy, translations, epoch=epoch)
+
+    torch.set_grad_enabled(True)
+    return epoch_loss, epoch_accuracy
 
 
-def test_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, batch_size=const.BATCH_SIZE_TEST, device=const.DEVICE):
-    return valid_loop(encoder, decoder, dataloader, loss_fn, experiment, epoch, batch_size, device)
+def train_loop(encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.TRAIN, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment, epoch)
+
+
+def valid_loop(encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.VALID, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment, epoch)
+
+
+def test_loop(encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.TEST, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment, epoch)
 
 
 def go_train(rank, world_size, experiment_name, port, train_data=None, valid_data=None):
@@ -232,6 +221,18 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
 
     encoder_scheduler = optim.lr_scheduler.StepLR(encoder_optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
     decoder_scheduler = optim.lr_scheduler.StepLR(decoder_optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
+    
+    config = {
+        'batch_size': const.BATCH_SIZE,
+        'bidirectional': const.BIDIRECTIONAL,
+        'encoder_layers': const.ENCODER_LAYERS,
+        'hidden_size': const.HIDDEN_SIZE,
+        'ignore_padding_in_loss': const.IGNORE_PADDING_IN_LOSS,
+        'grad_clipping_enabled': const.GRADIENT_CLIPPING_ENABLED,
+        'grad_clipping_max_norm': const.GRADIENT_CLIPPING_MAX_NORM,
+        'grad_clipping_norm_type': const.GRADIENT_CLIPPING_NORM_TYPE,
+        'device': const.DEVICE,
+    }
 
     with profiler.Profiler(active=const.PROFILER_IS_ACTIVE) as p:
         for epoch in range(const.EPOCHS):
@@ -240,11 +241,13 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
                 train_sampler.set_epoch(epoch)
                 valid_sampler.set_epoch(epoch)
 
-            train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, experiment, epoch)
-            valid_loss = valid_loop(encoder, decoder, valid_dataloader, loss_fn, experiment, epoch)
+            train_loop((encoder, encoder_optimizer), (decoder, decoder_optimizer), 
+                       dataloader, loss_fn, config, experiment, epoch=epoch)
+            valid_loss, valid_accuracy = valid_loop((encoder, None), (decoder, None),
+                                                    valid_dataloader, loss_fn, config, experiment, epoch=epoch)
 
             experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
-                                         decoder_optimizer.param_groups[0]['lr'], step=epoch, epoch=epoch)
+                                         decoder_optimizer.param_groups[0]['lr'], epoch=epoch)
             save.checkpoint_models(epoch, encoder, encoder_optimizer, decoder, decoder_optimizer, valid_loss,
                                    const.CHECKPOINT_PATH + const.SLURM_JOB_ID)
 

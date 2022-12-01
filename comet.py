@@ -41,26 +41,28 @@ class Experiment:
                 'data   output_lang_n_words': output_lang_n_words,
             }))
 
-    def log_train_metrics(self, loss, encoder_grad_norm, decoder_grad_norm, input_length, accuracy, step, epoch):
+    def log_learning_rate(self, encoder_lr, decoder_lr, epoch):
         if ddp.is_main_process():
-            self.experiment.log_metric(f'encoder_grad_norm', encoder_grad_norm, step=step, epoch=epoch)
-            self.experiment.log_metric(f'decoder_grad_norm', decoder_grad_norm, step=step, epoch=epoch)
-            self.experiment.log_metric(f'batch_loss', loss, step=step, epoch=epoch)
-            self.experiment.log_metric(f'seq_length', input_length, step=step, epoch=epoch)
-            self.experiment.log_metric(f'train_accuracy', accuracy, step=step, epoch=epoch)
-
-    def log_valid_metrics(self, input_lang, output_lang, inputs, results, valid_loss, accuracy, step, epoch):
-        inputs = [' '.join(input_lang.seq_from_tensor(el.flatten())) for el in inputs]
-        results = [' '.join(output_lang.seq_from_tensor(el.flatten())) for el in results]
-        self.experiment.log_text(str(step) + '\n' +
-                                 '\n\n'.join(
-                                     str(input) + '\n  ====>  \n' + str(result) for input, result in
-                                     zip(inputs, results)))
-
-        self.experiment.log_metric(f'valid_loss', valid_loss, step=step, epoch=epoch)
-        self.experiment.log_metric(f'valid_accuracy', accuracy, step=step, epoch=epoch)
-
-    def log_learning_rate(self, encoder_lr, decoder_lr, step, epoch):
+            self.experiment.log_metric(f'learning_rate_encoder', encoder_lr, epoch=epoch)
+            self.experiment.log_metric(f'learning_rate_decoder', decoder_lr, epoch=epoch)
+    
+    def log_batch_metrics(self, mode, loss, accuracy, encoder_grad_norm, decoder_grad_norm, step):
         if ddp.is_main_process():
-            self.experiment.log_metric(f'learning_rate_encoder', encoder_lr, step=step, epoch=epoch)
-            self.experiment.log_metric(f'learning_rate_decoder', decoder_lr, step=step, epoch=epoch)
+            self.experiment.log_metric(f'{mode}_loss', loss, step=step)
+            self.experiment.log_metric(f'{mode}_accuracy', accuracy, step=step)
+            self.experiment.log_metric(f'encoder_grad_norm', encoder_grad_norm, step=step)
+            self.experiment.log_metric(f'decoder_grad_norm', decoder_grad_norm, step=step)
+    
+    def log_epoch_metrics(self, mode, loss, accuracy, translations, epoch):
+        if ddp.is_main_process():
+            self.experiment.log_metric(f'{mode}_loss', loss, epoch=epoch)
+            self.experiment.log_metric(f'{mode}_accuracy', accuracy, epoch=epoch)
+            self.experiment.log_text(translations)
+
+
+def generate_text_seq(input_lang, output_lang, inputs, results, step):
+    inputs = [' '.join(input_lang.seq_from_tensor(el.flatten())) for el in inputs]
+    results = [' '.join(output_lang.seq_from_tensor(el.flatten())) for el in results]
+    return str(step) + '\n' + '\n\n'.join(
+        str(input) + '\n  ====>  \n' + str(result) for input, result in zip(inputs, results))
+        
