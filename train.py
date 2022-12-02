@@ -71,11 +71,11 @@ def get_correct(results, targets):
 
 def get_decoder_loss(loss_fn, decoder_outputs, targets, ignore_padding=const.IGNORE_PADDING_IN_LOSS):
     loss = 0
-    device = targets[0].device
-    target_length = targets[0].size(0)
+    device = targets.device
+    target_length = targets.shape[0]
 
     for i in range(target_length):
-        current_target = targets[:, i].flatten()
+        current_target = targets[i]
         decoder_output = decoder_outputs[i]
         current_loss = loss_fn(decoder_output, current_target)
     
@@ -126,7 +126,8 @@ def go(mode: Mode, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, ex
 
         encoder_output, encoder_hidden = encoder(inputs)
         decoder_outputs, output_seqs = decoder(encoder_hidden[0], target_length)
-        batch_loss = get_decoder_loss(loss_fn, decoder_outputs, targets, config['ignore_padding_in_loss'])
+        batch_loss = get_decoder_loss(loss_fn, decoder_outputs, targets.view(config['batch_size'], target_length).T, 
+                                      config['ignore_padding_in_loss'])
         
         if mode == Mode.TRAIN:
             batch_loss.backward()
@@ -148,7 +149,6 @@ def go(mode: Mode, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, ex
         epoch_accuracy += batch_accuracy
 
         if experiment and mode == Mode.TRAIN and const.LOG_BATCHES:
-            print('log batch')
             experiment.log_batch_metrics(mode.value, batch_loss, batch_accuracy, get_grad_norm(encoder), 
                                          get_grad_norm(decoder), step=epoch * size / config['batch_size'] + batch)
             
