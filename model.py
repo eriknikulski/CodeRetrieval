@@ -38,8 +38,8 @@ class EncoderRNN(nn.Module):
         self.batch_size = batch_size
 
     def to(self, device):
-        super(EncoderRNN, self).to(device)
         self.device = device
+        return super(EncoderRNN, self).to(device)
         
 
 class DecoderRNN(nn.Module):
@@ -76,8 +76,8 @@ class DecoderRNN(nn.Module):
         self.batch_size = batch_size
     
     def to(self, device):
-        super(DecoderRNN, self).to(device)
         self.device = device
+        return super(DecoderRNN, self).to(device)
 
 
 class DecoderRNNWrapped(nn.Module):
