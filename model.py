@@ -104,3 +104,6 @@ class DecoderRNNWrapped(nn.Module):
             output_seqs.append(topi.detach())
 
         return decoder_outputs, output_seqs
+
+    def setBatchSize(self, batch_size):
+        self.decoder.setBatchSize(batch_size)
