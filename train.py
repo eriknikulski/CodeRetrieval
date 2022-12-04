@@ -167,12 +167,12 @@ def train_loop(encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experi
     return go(Mode.TRAIN, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment, epoch)
 
 
-def valid_loop(encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.VALID, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment, epoch)
+def valid_loop(encoder, decoder, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.VALID, (encoder, None), (decoder, None), dataloader, loss_fn, config, experiment, epoch)
 
 
-def test_loop(encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.TEST, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment, epoch)
+def test_loop(encoder, decoder, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.TEST, (encoder, None), (decoder, None), dataloader, loss_fn, config, experiment, epoch)
 
 
 def go_train(rank, world_size, experiment_name, port, train_data=None, valid_data=None):
@@ -240,8 +240,8 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
 
             train_loop((encoder, encoder_optimizer), (decoder, decoder_optimizer), 
                        dataloader, loss_fn, config, experiment, epoch=epoch)
-            valid_loss, valid_accuracy = valid_loop((encoder, None), (decoder, None),
-                                                    valid_dataloader, loss_fn, config, experiment, epoch=epoch)
+            valid_loss, valid_accuracy = valid_loop(encoder, decoder, valid_dataloader, loss_fn, config, experiment, 
+                                                    epoch=epoch)
 
             experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
                                          decoder_optimizer.param_groups[0]['lr'], epoch=epoch)
