@@ -1,5 +1,6 @@
-import copy
 import re
+
+import javalang
 import unicodedata
 
 from bs4 import BeautifulSoup
@@ -117,7 +118,36 @@ def normalize_docstring(s):
     return s
 
 
+def normalize_code(s):
+    RE_WORDS = re.compile(r'''
+            # Find words in a string. Order matters!
+            [A-Z]+(?=[A-Z][a-z]) |  # All upper case before a capitalized word
+            [A-Z]?[a-z]+ |  # Capitalized words / all lower case
+            [A-Z]+ |  # All upper case
+            \d+ | # Numbers
+            .+
+        ''', re.VERBOSE)
+
+    def split_subtokens(s):
+        return [sub_token for sub_token in RE_WORDS.findall(s) if not sub_token == '_']
+
+    modifiers = ['public', 'private', 'protected', 'static']
+    s = s.encode('ascii', 'ignore').decode('ascii')
+    # remove annotations
+    s = re.sub(r'^\s*@.*', r'', s)
+
+    tokens = list(javalang.tokenizer.tokenize(s))
+    s = ' '.join([' '.join(split_subtokens(i.value)) for i in tokens if i.value not in modifiers])
+
+    # replace text
+    s = re.sub(r'""".*"""', const.TEXT_TOKEN, s)
+    s = re.sub(r'".*"', const.TEXT_TOKEN, s)
+    s = re.sub(r'\'.*\'', const.CHAR_TOKEN, s)
+    s = list(filter(None, s.split(' ')))
+    return s
+
+
 def normalize_string(s):
     s = unicode_to_ascii(s.lower().strip())
-    s = re.sub(r"[^a-zA-Z]+", r" ", s)
+    s = re.sub(r'[^a-zA-Z]+', r' ', s)
     return s

@@ -41,7 +41,7 @@ def read_folder(folder: RichPath):
 
 
 class CodeDataset(Dataset):
-    def __init__(self, path, transform=data.normalize_docstring, target_transform=lambda x: x,
+    def __init__(self, path, transform=data.normalize_docstring, target_transform=data.normalize_code,
                  min_tokens_docstring=const.MIN_LENGTH_DOCSTRING, max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
                  min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE, labels_only=False,
                  languages=None, build_language=True, to_tensors=True, remove_duplicates=True, sort=True):
@@ -60,7 +60,7 @@ class CodeDataset(Dataset):
             min_tokens_code = min_tokens_docstring
             max_tokens_code = max_tokens_docstring
         else:
-            self.df[['code_tokens']] = self.df[['code_tokens']].applymap(target_transform)
+            self.df[['code_tokens']] = self.df[['code']].applymap(target_transform)
         self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring, min_tokens_code,  max_tokens_code)
         if remove_duplicates:
             self.remove_duplicates()

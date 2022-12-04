@@ -25,6 +25,7 @@ fuzzywuzzy==0.18.0
 grpcio==1.50.0
 idna==3.4
 isodate==0.6.1
+javalang==0.13.0
 jsonschema==4.17.0
 kiwisolver==1.4.4
 matplotlib==3.4.3
