@@ -26,13 +26,13 @@ def tune_train(config, checkpoint_dir=None):
     output_lang = train_data.output_lang
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, config['batch_size'], input_lang)
-    decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, config['batch_size'], output_lang)
+    decoder = model.DecoderRNNWrapped(const.HIDDEN_SIZE, output_lang.n_words, config['batch_size'], output_lang)
 
     device = 'cpu'
     if torch.cuda.is_available():
         device = 'cuda:0'
         encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, config['batch_size'], input_lang, device=device)
-        decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, config['batch_size'], output_lang, device=device)
+        decoder = model.DecoderRNNWrapped(const.HIDDEN_SIZE, output_lang.n_words, config['batch_size'], output_lang, device=device)
         if torch.cuda.device_count() > 1:
             encoder = nn.DataParallel(encoder)
             decoder = nn.DataParallel(decoder)
@@ -65,12 +65,22 @@ def tune_train(config, checkpoint_dir=None):
         encoder.module.setBatchSize(config['batch_size'])
         decoder.module.setBatchSize(config['batch_size'])
 
+    config = {
+        'batch_size': config['batch_size'],
+        'bidirectional': const.BIDIRECTIONAL,
+        'encoder_layers': const.ENCODER_LAYERS,
+        'hidden_size': const.HIDDEN_SIZE,
+        'ignore_padding_in_loss': const.IGNORE_PADDING_IN_LOSS,
+        'grad_clipping_enabled': const.GRADIENT_CLIPPING_ENABLED,
+        'grad_clipping_max_norm': const.GRADIENT_CLIPPING_MAX_NORM,
+        'grad_clipping_norm_type': const.GRADIENT_CLIPPING_NORM_TYPE,
+        'device': device,
+    }
+
     for epoch in range(10):
-        train.train_loop(encoder, decoder, dataloader, loss_fn, encoder_optimizer, decoder_optimizer, 
-                         experiment=None, epoch=epoch, batch_size=config['batch_size'], device=device)
-        valid_loss, valid_acc = train.valid_loop(encoder, decoder, valid_dataloader, loss_fn,
-                                                 experiment=None, epoch=epoch, batch_size=config['batch_size'],
-                                                 device=device)
+        train.train_loop((encoder, encoder_optimizer), (decoder, decoder_optimizer), dataloader, loss_fn, config, 
+                         epoch=epoch)
+        valid_loss, valid_acc = train.valid_loop(encoder, decoder, valid_dataloader, loss_fn, config, epoch=epoch)
 
         with tune.checkpoint_dir(epoch) as checkpoint_dir:
             path = os.path.join(checkpoint_dir, 'checkpoint')
@@ -90,12 +100,12 @@ def run_test(best_trial, gpus_per_trial):
 
     batch_size = int(best_trial.config['batch_size'])
     best_encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, batch_size, input_lang)
-    best_decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, batch_size, output_lang)
+    best_decoder = model.DecoderRNNWrapped(const.HIDDEN_SIZE, output_lang.n_words, batch_size, output_lang)
     device = 'cpu'
     if torch.cuda.is_available():
         device = 'cuda:0'
         best_encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, batch_size, input_lang, device=device)
-        best_decoder = model.DecoderRNN(const.HIDDEN_SIZE, output_lang.n_words, batch_size, output_lang, device=device)
+        best_decoder = model.DecoderRNNWrapped(const.HIDDEN_SIZE, output_lang.n_words, batch_size, output_lang, device=device)
         if gpus_per_trial > 1:
             best_encoder = nn.DataParallel(best_encoder)
             best_decoder = nn.DataParallel(best_decoder)
@@ -114,8 +124,18 @@ def run_test(best_trial, gpus_per_trial):
 
     loss_fn = nn.NLLLoss(reduction='none') if const.IGNORE_PADDING_IN_LOSS else nn.NLLLoss()
 
-    test_loss, test_acc = train.test_loop(best_encoder, best_decoder, dataloader, loss_fn, 
-                                          experiment=None, epoch=0, batch_size=batch_size, device=device)
+    config = {
+        'batch_size': batch_size,
+        'bidirectional': const.BIDIRECTIONAL,
+        'encoder_layers': const.ENCODER_LAYERS,
+        'hidden_size': const.HIDDEN_SIZE,
+        'ignore_padding_in_loss': const.IGNORE_PADDING_IN_LOSS,
+        'grad_clipping_enabled': const.GRADIENT_CLIPPING_ENABLED,
+        'grad_clipping_max_norm': const.GRADIENT_CLIPPING_MAX_NORM,
+        'grad_clipping_norm_type': const.GRADIENT_CLIPPING_NORM_TYPE,
+        'device': device,
+    }
+    test_loss, test_acc = train.test_loop(best_encoder, best_decoder, dataloader, loss_fn, config)
     print(f'Best trial test set accuracy: {test_acc}')
     return test_acc
 
