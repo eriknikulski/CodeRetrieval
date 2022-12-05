@@ -19,8 +19,7 @@ class EncoderRNN(nn.Module):
 
         self.embedding = nn.Embedding(input_size, hidden_size, device=self.device)
         self.lstm = nn.LSTM(hidden_size, hidden_size, self.layers,
-                            bidirectional=True if self.bidirectional == 2 else False,
-                            dropout=self.dropout, device=device)
+                            bidirectional=(self.bidirectional == 2), dropout=self.dropout, device=device)
 
     def forward(self, input):
         hidden = (torch.zeros(self.bidirectional * self.layers, self.batch_size, self.hidden_size, device=self.device),
@@ -56,8 +55,7 @@ class DecoderRNN(nn.Module):
 
         self.embedding = nn.Embedding(output_size, hidden_size, device=self.device)
         self.lstm = nn.LSTM(hidden_size, hidden_size, self.layers,
-                            bidirectional=True if self.bidirectional == 2 else False,
-                            dropout=self.dropout, device=self.device)
+                            bidirectional=(self.bidirectional == 2), dropout=self.dropout, device=self.device)
         self.out = nn.Linear(self.bidirectional * hidden_size, output_size, device=self.device)
         self.softmax = nn.LogSoftmax(dim=1).to(self.device)
 
