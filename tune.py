@@ -58,12 +58,12 @@ def tune_train(config, checkpoint_dir=None):
         encoder_optimizer.load_state_dict(encoder_optimizer_state)
         decoder_optimizer.load_state_dict(decoder_optimizer_state)
         
-    if hasattr(encoder, 'setBatchSize') and callable(encoder.setBatchSize):
-        encoder.setBatchSize(config['batch_size'])
-        decoder.setBatchSize(config['batch_size'])
+    if hasattr(encoder, 'set_batch_size') and callable(encoder.set_batch_size):
+        encoder.set_batch_size(config['batch_size'])
+        decoder.set_batch_size(config['batch_size'])
     else:
-        encoder.module.setBatchSize(config['batch_size'])
-        decoder.module.setBatchSize(config['batch_size'])
+        encoder.module.set_batch_size(config['batch_size'])
+        decoder.module.set_batch_size(config['batch_size'])
 
     config = {
         'batch_size': config['batch_size'],

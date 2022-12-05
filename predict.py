@@ -12,7 +12,7 @@ import model
 
 def evaluate(encoder, decoder, sentence, max_length=const.MAX_LENGTH_CODE):
     with torch.no_grad():
-        encoder_hidden = encoder.initHidden()
+        encoder_hidden = encoder.init_hidden()
         encoder_output, encoder_hidden = encoder(sentence, encoder_hidden)
 
         output = []

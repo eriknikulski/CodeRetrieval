@@ -22,18 +22,17 @@ class EncoderRNN(nn.Module):
                             bidirectional=(self.bidirectional == 2), dropout=self.dropout, device=device)
 
     def forward(self, input):
-        hidden = (torch.zeros(self.bidirectional * self.layers, self.batch_size, self.hidden_size, device=self.device),
-                  torch.zeros(self.bidirectional * self.layers, self.batch_size, self.hidden_size, device=self.device))
+        hidden = self.init_hidden()
         embedded = self.embedding(input).transpose(0, 1)
         output = embedded.view(-1, self.batch_size, self.hidden_size)
         output, hidden = self.lstm(output, hidden)
         return output, hidden
 
-    def initHidden(self):
+    def init_hidden(self):
         return torch.zeros(self.bidirectional * self.layers, self.batch_size, self.hidden_size, device=self.device),\
                torch.zeros(self.bidirectional * self.layers, self.batch_size, self.hidden_size, device=self.device)
 
-    def setBatchSize(self, batch_size):
+    def set_batch_size(self, batch_size):
         self.batch_size = batch_size
 
     def to(self, device):
@@ -66,11 +65,11 @@ class DecoderRNN(nn.Module):
         output = self.softmax(self.out(output[-1]))
         return output, hidden
 
-    def initHidden(self):
+    def init_hidden(self):
         return torch.zeros(self.layers, self.batch_size, self.hidden_size, device=self.device),\
                torch.zeros(self.layers, self.batch_size, self.hidden_size, device=self.device)
 
-    def setBatchSize(self, batch_size):
+    def set_batch_size(self, batch_size):
         self.batch_size = batch_size
     
     def to(self, device):
@@ -103,5 +102,5 @@ class DecoderRNNWrapped(nn.Module):
 
         return decoder_outputs, output_seqs
 
-    def setBatchSize(self, batch_size):
-        self.decoder.setBatchSize(batch_size)
+    def set_batch_size(self, batch_size):
+        self.decoder.set_batch_size(batch_size)
