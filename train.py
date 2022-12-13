@@ -101,7 +101,7 @@ def go(mode: Mode, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, ex
     epoch_loss = 0
     epoch_accuracy = 0
     inputs = None
-    results = None
+    output_seqs = None
     
     if mode == Mode.TRAIN:
         encoder.train()
@@ -126,7 +126,7 @@ def go(mode: Mode, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, ex
 
         encoder_output, encoder_hidden = encoder(inputs)
         decoder_outputs, output_seqs = decoder(encoder_hidden[0], target_length)
-        batch_loss = get_decoder_loss(loss_fn, decoder_outputs, targets.view(config['batch_size'], target_length).T, 
+        batch_loss = get_decoder_loss(loss_fn, decoder_outputs.permute(1, 0, 2), targets.T, 
                                       config['ignore_padding_in_loss'])
         
         if mode == Mode.TRAIN:
@@ -144,8 +144,7 @@ def go(mode: Mode, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, ex
         batch_loss = batch_loss.item()
         epoch_loss += batch_loss
         # calc percentage of correctly generated sequences
-        results = torch.cat(output_seqs).view(1, -1, config['batch_size']).permute(2, 1, 0)
-        batch_accuracy = get_correct(results, targets) / config['batch_size']
+        batch_accuracy = get_correct(output_seqs, targets) / config['batch_size']
         epoch_accuracy += batch_accuracy
 
         if experiment and mode == Mode.TRAIN and const.LOG_BATCHES:
@@ -156,7 +155,7 @@ def go(mode: Mode, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, ex
     epoch_accuracy /= num_batches
     
     if experiment:
-        translations = comet.generate_text_seq(input_lang, output_lang, inputs[:5], results[:5], epoch)
+        translations = comet.generate_text_seq(input_lang, output_lang, inputs[:5], output_seqs[:5], epoch)
         experiment.log_epoch_metrics(mode.value, epoch_loss, epoch_accuracy, translations, epoch=epoch)
 
     torch.set_grad_enabled(True)

@@ -19,14 +19,13 @@ class EncoderRNN(nn.Module):
         self.device = device
 
         self.embedding = nn.Embedding(self.input_size, self.hidden_size, device=self.device)
-        self.lstm = nn.LSTM(hidden_size, hidden_size, self.layers,
-                            bidirectional=(self.bidirectional == 2), dropout=self.dropout, device=self.device)
+        self.lstm = nn.LSTM(hidden_size, hidden_size, self.layers, bidirectional=(self.bidirectional == 2), 
+                            dropout=self.dropout, batch_first=True, device=self.device)
 
     def forward(self, input):
         hidden = self.init_hidden()
-        embedded = self.embedding(input).transpose(0, 1)
-        output = embedded.view(-1, self.batch_size, self.hidden_size)
-        output, hidden = self.lstm(output, hidden)
+        embedded = self.embedding(input)
+        output, hidden = self.lstm(embedded, hidden)
         return output, hidden
 
     def init_hidden(self):
@@ -55,16 +54,16 @@ class DecoderRNN(nn.Module):
         self.device = device
 
         self.embedding = nn.Embedding(self.output_size, self.hidden_size, device=self.device)
-        self.lstm = nn.LSTM(self.hidden_size, self.hidden_size, self.layers,
-                            bidirectional=(self.bidirectional == 2), dropout=self.dropout, device=self.device)
+        self.lstm = nn.LSTM(self.hidden_size, self.hidden_size, self.layers, bidirectional=(self.bidirectional == 2), 
+                            dropout=self.dropout, batch_first=True, device=self.device)
         self.out = nn.Linear(self.bidirectional * self.hidden_size, self.output_size, device=self.device)
-        self.softmax = nn.LogSoftmax(dim=1).to(self.device)
+        self.softmax = nn.LogSoftmax(dim=2).to(self.device)
 
     def forward(self, input, hidden):
-        output = self.embedding(input).view(1, self.batch_size, -1)
+        output = self.embedding(input)
         output = F.relu(output)
         output, hidden = self.lstm(output, hidden)
-        output = self.softmax(self.out(output[-1]))
+        output = self.softmax(self.out(output))
         return output, hidden
 
     def init_hidden(self):
@@ -86,7 +85,7 @@ class DecoderRNNWrapped(nn.Module):
         self.decoder = DecoderRNN(hidden_size, output_size, batch_size, lang, bidirectional, layers, dropout, device)
 
     def forward(self, encoder_hidden, target_length):
-        decoder_input = torch.tensor([[const.SOS_TOKEN] * self.decoder.batch_size], device=self.decoder.device)
+        decoder_input = torch.tensor([[const.SOS_TOKEN]] * self.decoder.batch_size, device=self.decoder.device)
         decoder_hidden = (encoder_hidden,
                           torch.zeros(self.decoder.bidirectional * self.decoder.layers, self.decoder.batch_size, 
                                       self.decoder.hidden_size, device=self.decoder.device))
@@ -97,12 +96,12 @@ class DecoderRNNWrapped(nn.Module):
         for di in range(target_length):
             decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden)
             topv, topi = decoder_output.topk(1)
-            decoder_input = topi.squeeze().detach()  # detach from history as input
+            decoder_input = topi.squeeze(dim=1).detach()  # detach from history as input
 
             decoder_outputs.append(decoder_output)
             output_seqs.append(topi.detach())
 
-        return decoder_outputs, output_seqs
+        return torch.cat(decoder_outputs, dim=1), torch.cat(output_seqs, dim=1).squeeze()
 
     def set_batch_size(self, batch_size):
         self.decoder.set_batch_size(batch_size)

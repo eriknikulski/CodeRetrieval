@@ -45,7 +45,7 @@ class Lang:
     def tensor_from_sequence(self, seq, oov_token=const.OOV_TOKEN):
         indexes = self.indexes_from_sequence(seq, oov_token)
         indexes.append(const.EOS_TOKEN)
-        return torch.tensor(indexes, dtype=torch.long, device=const.DEVICE).view(-1, 1)
+        return torch.tensor(indexes, dtype=torch.long, device=const.DEVICE)
 
     def seq_from_indices(self, idcs):
         return [self.index2word[idx] for idx in idcs]
