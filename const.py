@@ -157,4 +157,5 @@ def get_hyperparams(params=None):
         'training   gradient_clipping_enabled': GRADIENT_CLIPPING_ENABLED,
         'training   gradient_clipping_norm_type': GRADIENT_CLIPPING_NORM_TYPE,
         'training   gradient_clipping_max_norm': GRADIENT_CLIPPING_MAX_NORM,
+        'training   gradient_clipping_value': GRADIENT_CLIPPING_VALUE
     } | params
