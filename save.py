@@ -40,4 +40,4 @@ def checkpoint_model(epoch, net, optimizer, loss, path):
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss,
             }, path)
-        print(f'saved checkpoint at epoch: {epoch} with loss: {loss}')
+            print(f'saved checkpoint at epoch: {epoch} with loss: {loss}')
