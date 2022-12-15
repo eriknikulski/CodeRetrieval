@@ -1,3 +1,5 @@
+import random
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -115,3 +117,23 @@ class DecoderRNNWrapped(nn.Module):
 
     def set_batch_size(self, batch_size):
         self.decoder.set_batch_size(batch_size)
+
+
+class JointEmbeder(nn.Module):
+    def __init__(self, encoders, decoders):
+        super(JointEmbeder, self).__init__()
+        self.encoders = nn.ModuleList(encoders)
+        self.decoders = nn.ModuleList(decoders)
+    
+    def forward(self, inputs, target_length):
+        encoder = random.choice(self.encoders)
+        encoder_output, encoder_hidden = encoder(inputs)
+        
+        decoder_outputs, output_seqs = [], []
+        
+        for decoder in self.decoders:
+            _decoder_outputs, _output_seqs = decoder(encoder_hidden[0], target_length)
+            decoder_outputs.append(_decoder_outputs)
+            output_seqs.append(_output_seqs)
+        
+        return torch.stack(decoder_outputs), torch.stack(output_seqs)

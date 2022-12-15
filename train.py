@@ -2,9 +2,11 @@ from __future__ import unicode_literals, print_function, division
 import argparse
 import pickle
 import random
+import statistics
 import string
 import time
 from enum import Enum
+from operator import add
 
 import comet_ml
 import torch
@@ -87,10 +89,9 @@ def get_decoder_loss(loss_fn, decoder_outputs, targets, ignore_padding=const.IGN
     return loss / target_length
 
 
-def go(mode: Mode, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment=None, epoch=0):
-    encoder, encoder_optimizer = encoder_tuple
-    decoder, decoder_optimizer = decoder_tuple
-
+def go(mode: Mode, joint_embedder, optimizers, dataloader, loss_fn, config, experiment=None, epoch=0):
+    joint_module = getattr(joint_embedder, 'module', joint_embedder)      # get module if wrapped in DDP
+    n_decoders = len(joint_module.decoders)
     input_lang = dataloader.dataset.input_lang
     output_lang = dataloader.dataset.output_lang
 
@@ -99,79 +100,74 @@ def go(mode: Mode, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, ex
     num_batches = int(size / config['batch_size'])
     
     epoch_loss = 0
-    epoch_accuracy = 0
+    epoch_accuracies = []
     inputs = None
-    output_seqs = None
+    outputs_seqs = None
     
     if mode == Mode.TRAIN:
-        encoder.train()
-        decoder.train()
+        joint_embedder.train()
     else:
-        encoder.eval()
-        decoder.eval()
+        joint_embedder.eval()
         torch.set_grad_enabled(False)
     
     for batch, (inputs, targets, urls) in enumerate(dataloader):
         inputs, targets = inputs.to(config['device']), targets.to(config['device'])
 
         batch_loss = 0
-        batch_output = []
+        batch_accuracies = []
         
         if mode == Mode.TRAIN:
-            encoder_optimizer.zero_grad()
-            decoder_optimizer.zero_grad()
+            for optimizer in optimizers:
+                optimizer.zero_grad()
 
         input_length = inputs[0].size(0)
         target_length = targets[0].size(0)
 
-        encoder_output, encoder_hidden = encoder(inputs)
-        decoder_outputs, output_seqs = decoder(encoder_hidden[0], target_length)
-        batch_loss = get_decoder_loss(loss_fn, decoder_outputs.permute(1, 0, 2), targets.T, 
-                                      config['ignore_padding_in_loss'])
+        decoders_outputs, outputs_seqs = joint_embedder(inputs, target_length)
         
+        for decoder_outputs in decoders_outputs:
+            batch_loss += get_decoder_loss(loss_fn, decoder_outputs.permute(1, 0, 2), targets.T, 
+                                           config['ignore_padding_in_loss'])
         if mode == Mode.TRAIN:
             batch_loss.backward()
-            if config['grad_clipping_enabled']:
-                nn.utils.clip_grad_norm_(encoder.parameters(),
-                                         max_norm=config['grad_clipping_max_norm'],
-                                         norm_type=config['grad_clipping_norm_type'])
-                nn.utils.clip_grad_norm_(decoder.parameters(),
-                                         max_norm=config['grad_clipping_max_norm'],
-                                         norm_type=config['grad_clipping_norm_type'])
-            encoder_optimizer.step()
-            decoder_optimizer.step()
+            for optimizer in optimizers:
+                optimizer.step()
 
         batch_loss = batch_loss.item()
         epoch_loss += batch_loss
         # calc percentage of correctly generated sequences
-        batch_accuracy = get_correct(output_seqs, targets) / config['batch_size']
-        epoch_accuracy += batch_accuracy
+        batch_accuracies.append(get_correct(outputs_seqs[-1], targets) / config['batch_size'])          # acc regen code
+        if n_decoders > 1:
+            batch_accuracies.append(get_correct(outputs_seqs[0], inputs) / config['batch_size'])        # acc regen doc
+        epoch_accuracies = map(add, epoch_accuracies, batch_accuracies) if epoch_accuracies else batch_accuracies
 
         if experiment and mode == Mode.TRAIN and const.LOG_BATCHES:
-            experiment.log_batch_metrics(mode.value, batch_loss, batch_accuracy, get_grad_norm(encoder), 
-                                         get_grad_norm(decoder), step=epoch * size / config['batch_size'] + batch)
+            grad_norms = [get_grad_norm(module) for module_list in joint_module.children() 
+                          for module in module_list.children()]
+            experiment.log_batch_metrics(mode.value, batch_loss, batch_accuracies, grad_norms,
+                                         step=epoch * size / config['batch_size'] + batch)
             
     epoch_loss /= num_batches
-    epoch_accuracy /= num_batches
+    epoch_accuracies = list(map(lambda x: x / num_batches, epoch_accuracies))
     
     if experiment:
-        translations = comet.generate_text_seq(input_lang, output_lang, inputs[:5], output_seqs[:5], epoch)
-        experiment.log_epoch_metrics(mode.value, epoch_loss, epoch_accuracy, translations, epoch=epoch)
+        translations = comet.generate_text_seq(input_lang, output_lang, inputs[:5], outputs_seqs[::, :5], epoch)
+        experiment.log_epoch_metrics(mode.value, epoch_loss, epoch_accuracies, translations, epoch=epoch)
 
     torch.set_grad_enabled(True)
-    return epoch_loss, epoch_accuracy
+    return epoch_loss, statistics.mean(epoch_accuracies)
 
 
-def train_loop(encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.TRAIN, encoder_tuple, decoder_tuple, dataloader, loss_fn, config, experiment, epoch)
+def train_loop(joint_embedder, optimizers, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.TRAIN, joint_embedder, optimizers, dataloader, loss_fn, config, experiment, epoch)
 
 
-def valid_loop(encoder, decoder, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.VALID, (encoder, None), (decoder, None), dataloader, loss_fn, config, experiment, epoch)
+def valid_loop(joint_embedder, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.VALID, joint_embedder, None, dataloader, loss_fn, config, experiment, epoch)
 
 
-def test_loop(encoder, decoder, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.TEST, (encoder, None), (decoder, None), dataloader, loss_fn, config, experiment, epoch)
+def test_loop(joint_embedder, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.TEST, joint_embedder, None, dataloader, loss_fn, config, experiment, epoch)
 
 
 def go_train(rank, world_size, experiment_name, port, train_data=None, valid_data=None):
@@ -196,13 +192,14 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
     decoder = model.DecoderRNNWrapped(const.HIDDEN_SIZE, output_lang.n_words, const.BATCH_SIZE, output_lang)
+    joint_embedder = model.JointEmbeder([encoder], [decoder])
 
     if ddp.is_dist_avail_and_initialized():
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=const.SHUFFLE_DATA)
         valid_sampler = torch.utils.data.distributed.DistributedSampler(valid_data, shuffle=const.SHUFFLE_DATA)
 
-        encoder = DistributedDataParallel(encoder.to(const.DEVICE), device_ids=[rank])
-        decoder = DistributedDataParallel(decoder.to(const.DEVICE), device_ids=[rank])
+        joint_embedder = DistributedDataParallel(joint_embedder.to(const.DEVICE), device_ids=[rank])
+
     shuffle = const.SHUFFLE_DATA if (train_sampler is None) else None
     dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=shuffle,
                                    collate_fn=pad_collate.PadCollate(), sampler=train_sampler, drop_last=True,
@@ -214,6 +211,7 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
     loss_fn = nn.NLLLoss(reduction='none') if const.IGNORE_PADDING_IN_LOSS else nn.NLLLoss()
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
+    optimizers = [encoder_optimizer, decoder_optimizer]
 
     encoder_scheduler = optim.lr_scheduler.StepLR(encoder_optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
     decoder_scheduler = optim.lr_scheduler.StepLR(decoder_optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
@@ -237,9 +235,8 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
                 train_sampler.set_epoch(epoch)
                 valid_sampler.set_epoch(epoch)
 
-            train_loop((encoder, encoder_optimizer), (decoder, decoder_optimizer), 
-                       dataloader, loss_fn, config, experiment, epoch=epoch)
-            valid_loss, valid_accuracy = valid_loop(encoder, decoder, valid_dataloader, loss_fn, config, experiment, 
+            train_loop(joint_embedder, optimizers, dataloader, loss_fn, config, experiment, epoch=epoch)
+            valid_loss, valid_accuracy = valid_loop(joint_embedder, valid_dataloader, loss_fn, config, experiment, 
                                                     epoch=epoch)
 
             experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
