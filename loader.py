@@ -9,7 +9,7 @@ import data
 
 
 def remove_duplicate_code_df(df: pd.DataFrame) -> pd.DataFrame:
-    "Resolve near duplicates based upon code_tokens field in data."
+    """Resolve near duplicates based upon code_tokens field in data."""
     assert 'code_tokens' in df.columns.values, 'Data must contain field code_tokens'
     # assert 'language' in df.columns.values, 'Data must contain field language'
     df.reset_index(inplace=True, drop=True)
@@ -20,7 +20,7 @@ def remove_duplicate_code_df(df: pd.DataFrame) -> pd.DataFrame:
                            axis=1)
     # compute fuzzy duplicates
     exclusion_set = dd.compute_ids_to_exclude()
-    # compute pandas.series of type boolean which flags whether or not code should be discarded
+    # compute pandas.series of type boolean which flags whether code should be discarded
     # in order to resolve duplicates (discards all but one in each set of duplicate functions)
     exclusion_mask = df['doc_id'].apply(lambda x: x not in exclusion_set)
 
@@ -113,7 +113,7 @@ class CodeDataset(Dataset):
 
     def to_numpy(self):
         print('convert dataframe to numpy')
-        self.df_np = self.df.to_numpy()[:,:3].tolist()
+        self.df_np = self.df.to_numpy()[:, :3].tolist()
 
     def enforce_length_constraints(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
                                    max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
