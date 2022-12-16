@@ -41,10 +41,9 @@ class Experiment:
                 'data   output_lang_n_words': output_lang_n_words,
             }))
 
-    def log_learning_rate(self, encoder_lr, decoder_lr, epoch):
+    def log_learning_rate(self, lr, epoch):
         if ddp.is_main_process():
-            self.experiment.log_metric(f'learning_rate_encoder', encoder_lr, epoch=epoch)
-            self.experiment.log_metric(f'learning_rate_decoder', decoder_lr, epoch=epoch)
+            self.experiment.log_metric(f'learning_rate', lr, epoch=epoch)
     
     def log_batch_metrics(self, mode, loss, accuracies, grad_norms, step):
         if ddp.is_main_process():

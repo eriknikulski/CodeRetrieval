@@ -89,7 +89,7 @@ def get_decoder_loss(loss_fn, decoder_outputs, targets, ignore_padding=const.IGN
     return loss / target_length
 
 
-def go(mode: Mode, joint_embedder, optimizers, dataloader, loss_fn, config, experiment=None, epoch=0):
+def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, config, experiment=None, epoch=0):
     joint_module = getattr(joint_embedder, 'module', joint_embedder)      # get module if wrapped in DDP
     n_decoders = len(joint_module.decoders)
     input_lang = dataloader.dataset.input_lang
@@ -117,8 +117,7 @@ def go(mode: Mode, joint_embedder, optimizers, dataloader, loss_fn, config, expe
         batch_accuracies = []
         
         if mode == Mode.TRAIN:
-            for optimizer in optimizers:
-                optimizer.zero_grad()
+            optimizer.zero_grad()
 
         input_length = inputs[0].size(0)
         target_length = targets[0].size(0)
@@ -130,8 +129,7 @@ def go(mode: Mode, joint_embedder, optimizers, dataloader, loss_fn, config, expe
                                            config['ignore_padding_in_loss'])
         if mode == Mode.TRAIN:
             batch_loss.backward()
-            for optimizer in optimizers:
-                optimizer.step()
+            optimizer.step()
 
         batch_loss = batch_loss.item()
         epoch_loss += batch_loss
@@ -158,8 +156,8 @@ def go(mode: Mode, joint_embedder, optimizers, dataloader, loss_fn, config, expe
     return epoch_loss, statistics.mean(epoch_accuracies)
 
 
-def train_loop(joint_embedder, optimizers, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.TRAIN, joint_embedder, optimizers, dataloader, loss_fn, config, experiment, epoch)
+def train_loop(joint_embedder, optimizer, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.TRAIN, joint_embedder, optimizer, dataloader, loss_fn, config, experiment, epoch)
 
 
 def valid_loop(joint_embedder, dataloader, loss_fn, config, experiment=None, epoch=0):
@@ -209,12 +207,9 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
                                          num_workers=const.NUM_WORKERS_DATALOADER, pin_memory=const.PIN_MEMORY)
 
     loss_fn = nn.NLLLoss(reduction='none') if const.IGNORE_PADDING_IN_LOSS else nn.NLLLoss()
-    encoder_optimizer = optim.SGD(encoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
-    decoder_optimizer = optim.SGD(decoder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
-    optimizers = [encoder_optimizer, decoder_optimizer]
+    optimizer = optim.SGD(joint_embedder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
 
-    encoder_scheduler = optim.lr_scheduler.StepLR(encoder_optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
-    decoder_scheduler = optim.lr_scheduler.StepLR(decoder_optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
     
     config = {
         'batch_size': const.BATCH_SIZE,
@@ -235,17 +230,15 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
                 train_sampler.set_epoch(epoch)
                 valid_sampler.set_epoch(epoch)
 
-            train_loop(joint_embedder, optimizers, dataloader, loss_fn, config, experiment, epoch=epoch)
+            train_loop(joint_embedder, optimizer, dataloader, loss_fn, config, experiment, epoch=epoch)
             valid_loss, valid_accuracy = valid_loop(joint_embedder, valid_dataloader, loss_fn, config, experiment, 
                                                     epoch=epoch)
 
-            experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
-                                         decoder_optimizer.param_groups[0]['lr'], epoch=epoch)
+            experiment.log_learning_rate(optimizer.param_groups[0]['lr'], epoch=epoch)
             save.checkpoint_encoders_decoders(epoch, joint_embedder, valid_loss,
                                               const.CHECKPOINT_PATH + const.SLURM_JOB_ID)
 
-            encoder_scheduler.step()
-            decoder_scheduler.step()
+            scheduler.step()
             p.step()
 
     save.model(joint_embedder.state_dict(), const.MODEL_JOINT_EMBEDDER_PATH)
