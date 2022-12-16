@@ -131,26 +131,28 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, config, exper
             batch_loss.backward()
             optimizer.step()
 
-        batch_loss = batch_loss.item()
-        epoch_loss += batch_loss
-        # calc percentage of correctly generated sequences
-        batch_accuracies.append(get_correct(outputs_seqs[-1], targets) / config['batch_size'])          # acc regen code
-        if n_decoders > 1:
-            batch_accuracies.append(get_correct(outputs_seqs[0], inputs) / config['batch_size'])        # acc regen doc
-        epoch_accuracies = map(add, epoch_accuracies, batch_accuracies) if epoch_accuracies else batch_accuracies
+        if const.LOG_IN_TRAINING and mode == Mode.TRAIN:
+            batch_loss = batch_loss.item()
+            epoch_loss += batch_loss
+            # calc percentage of correctly generated sequences
+            batch_accuracies.append(get_correct(outputs_seqs[-1], targets) / config['batch_size'])      # acc regen code
+            if n_decoders > 1:
+                batch_accuracies.append(get_correct(outputs_seqs[0], inputs) / config['batch_size'])    # acc regen doc
+            epoch_accuracies = map(add, epoch_accuracies, batch_accuracies) if epoch_accuracies else batch_accuracies
 
-        if experiment and mode == Mode.TRAIN and const.LOG_BATCHES:
-            grad_norms = [get_grad_norm(module) for module_list in joint_module.children() 
-                          for module in module_list.children()]
-            experiment.log_batch_metrics(mode.value, batch_loss, batch_accuracies, grad_norms,
-                                         step=epoch * size / config['batch_size'] + batch)
-            
-    epoch_loss /= num_batches
-    epoch_accuracies = list(map(lambda x: x / num_batches, epoch_accuracies))
-    
-    if experiment:
-        translations = comet.generate_text_seq(input_lang, output_lang, inputs[:5], outputs_seqs[::, :5], epoch)
-        experiment.log_epoch_metrics(mode.value, epoch_loss, epoch_accuracies, translations, epoch=epoch)
+            if experiment and mode == Mode.TRAIN and const.LOG_BATCHES:
+                grad_norms = [get_grad_norm(module) for module_list in joint_module.children()
+                              for module in module_list.children()]
+                experiment.log_batch_metrics(mode.value, batch_loss, batch_accuracies, grad_norms,
+                                             step=epoch * size / config['batch_size'] + batch)
+
+    if const.LOG_IN_TRAINING and mode == Mode.TRAIN:
+        epoch_loss /= num_batches
+        epoch_accuracies = list(map(lambda x: x / num_batches, epoch_accuracies))
+
+        if experiment:
+            translations = comet.generate_text_seq(input_lang, output_lang, inputs[:5], outputs_seqs[::, :5], epoch)
+            experiment.log_epoch_metrics(mode.value, epoch_loss, epoch_accuracies, translations, epoch=epoch)
 
     torch.set_grad_enabled(True)
     return epoch_loss, statistics.mean(epoch_accuracies)
