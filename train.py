@@ -241,14 +241,14 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
 
             experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
                                          decoder_optimizer.param_groups[0]['lr'], epoch=epoch)
-            save.checkpoint_models(epoch, encoder, encoder_optimizer, decoder, decoder_optimizer, valid_loss,
-                                   const.CHECKPOINT_PATH + const.SLURM_JOB_ID)
+            save.checkpoint_encoders_decoders(epoch, joint_embedder, optimizers, valid_loss,
+                                              const.CHECKPOINT_PATH + const.SLURM_JOB_ID)
 
             encoder_scheduler.step()
             decoder_scheduler.step()
             p.step()
 
-    save.models(encoder, decoder)
+    save.model(joint_embedder.state_dict(), const.MODEL_JOINT_EMBEDDER_PATH)
     if ddp.is_dist_avail_and_initialized():
         ddp.cleanup()
     experiment.end()
