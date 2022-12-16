@@ -241,7 +241,7 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
 
             experiment.log_learning_rate(encoder_optimizer.param_groups[0]['lr'],
                                          decoder_optimizer.param_groups[0]['lr'], epoch=epoch)
-            save.checkpoint_encoders_decoders(epoch, joint_embedder, optimizers, valid_loss,
+            save.checkpoint_encoders_decoders(epoch, joint_embedder, valid_loss,
                                               const.CHECKPOINT_PATH + const.SLURM_JOB_ID)
 
             encoder_scheduler.step()

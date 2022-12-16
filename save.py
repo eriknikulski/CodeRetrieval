@@ -23,16 +23,14 @@ def is_ready_to_save(loss, epoch):
     return False
 
 
-def checkpoint_encoders_decoders(epoch, joint_embedder, optimizers, loss, base_path):
+def checkpoint_encoders_decoders(epoch, joint_embedder, loss, base_path):
     if ddp.is_main_process():
         if is_ready_to_save(loss, epoch):
             joint_module = getattr(joint_embedder, 'module', joint_embedder)
-            num_encoders = len(joint_module.encoders)
             for i, encoder in enumerate(joint_module.encoders):
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': encoder.state_dict(),
-                    'optimizer_state_dict': optimizers[i].state_dict(),
                     'loss': loss,
                 }, base_path + f'_encoder_{i}_{epoch}.pt')
                 print(f'saved encoder_{i} checkpoint at epoch: {epoch} with loss: {loss}')
@@ -41,7 +39,6 @@ def checkpoint_encoders_decoders(epoch, joint_embedder, optimizers, loss, base_p
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': decoder.state_dict(),
-                    'optimizer_state_dict': optimizers[i + num_encoders].state_dict(),
                     'loss': loss,
                 }, base_path + f'_decoder_{i}_{epoch}.pt')
                 print(f'saved decoder checkpoint at epoch: {epoch} with loss: {loss}')
