@@ -131,7 +131,7 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, config, exper
             batch_loss.backward()
             optimizer.step()
 
-        if const.LOG_IN_TRAINING and mode == Mode.TRAIN:
+        if const.LOG_IN_TRAINING or mode != Mode.TRAIN:
             batch_loss = batch_loss.item()
             epoch_loss += batch_loss
             # calc percentage of correctly generated sequences
@@ -146,7 +146,7 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, config, exper
                 experiment.log_batch_metrics(mode.value, batch_loss, batch_accuracies, grad_norms,
                                              step=epoch * size / config['batch_size'] + batch)
 
-    if const.LOG_IN_TRAINING and mode == Mode.TRAIN:
+    if const.LOG_IN_TRAINING or mode != Mode.TRAIN:
         epoch_loss /= num_batches
         epoch_accuracies = list(map(lambda x: x / num_batches, epoch_accuracies))
 
