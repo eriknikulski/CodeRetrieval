@@ -41,7 +41,6 @@ class Profiler:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if self.active:
             self.profiler.stop()
-        return self
 
     def step(self):
         if self.active:
