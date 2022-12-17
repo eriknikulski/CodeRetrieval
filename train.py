@@ -155,7 +155,7 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, config, exper
             experiment.log_epoch_metrics(mode.value, epoch_loss, epoch_accuracies, translations, epoch=epoch)
 
     torch.set_grad_enabled(True)
-    return epoch_loss, statistics.mean(epoch_accuracies)
+    return epoch_loss, statistics.mean(epoch_accuracies) if epoch_accuracies else 0
 
 
 def train_loop(joint_embedder, optimizer, dataloader, loss_fn, config, experiment=None, epoch=0):
