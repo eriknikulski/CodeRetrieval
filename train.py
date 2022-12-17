@@ -129,7 +129,7 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, confi
         batch_accuracies = []
         
         if mode == Mode.TRAIN:
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=const.SET_GRADIENTS_NONE)
 
         input_length = inputs[0].size(0)
         target_length = targets[0].size(0)
