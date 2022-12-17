@@ -69,7 +69,8 @@ def get_grad_norm(model):
     parameters = [p for p in model.parameters() if p.grad is not None and p.requires_grad]
     if len(parameters) > 0:
         device = parameters[0].grad.device
-        total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), 2).to(device) for p in parameters]), 2.0).item()
+        total_norm = torch.norm(
+            torch.stack([torch.norm(p.grad.detach(), 2).to(device, non_blocking=True) for p in parameters]), 2.0).item()
     return total_norm
 
 
@@ -121,7 +122,8 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, confi
         torch.set_grad_enabled(False)
     
     for batch, (inputs, targets, urls) in enumerate(dataloader):
-        inputs, targets = inputs.to(config['device']), targets.to(config['device'])
+        inputs = inputs.to(config['device'], non_blocking=True)
+        targets = targets.to(config['device'], non_blocking=True)
 
         batch_loss = 0
         batch_accuracies = []
