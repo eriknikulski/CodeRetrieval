@@ -18,6 +18,8 @@ def find_free_port(addr):
 
 
 def setup(rank, world_size, port):
+    torch.backends.cuda.matmul.allow_tf32 = const.ALLOW_TF32
+
     os.environ['MASTER_ADDR'] = const.MASTER_ADDR
     os.environ['MASTER_PORT'] = str(port)
     os.environ["WORLD_SIZE"] = str(world_size)

@@ -89,7 +89,8 @@ MIN_CHECKPOINT_EPOCH = 500
 MIN_CHECKPOINT_EPOCH_DIST = 100
 LOG_BATCHES = True
 LOG_IN_TRAINING = False
-FP16 = False
+FP16 = True
+ALLOW_TF32 = True
 SET_GRADIENTS_NONE = True
 
 MIN_NUM_TOKENS = 5
@@ -139,6 +140,7 @@ def get_hyperparams(params=None):
         'setup   log_batches': LOG_BATCHES,
         'setup   log_in_training': LOG_IN_TRAINING,
         'setup   fp16': FP16,
+        'setup   allow_tf32': ALLOW_TF32,
         'setup   set_gradients_none': SET_GRADIENTS_NONE,
 
         'data   min_num_tokens': MIN_NUM_TOKENS,
