@@ -5,6 +5,7 @@ import random
 import statistics
 import string
 import time
+from contextlib import contextmanager
 from enum import Enum
 from operator import add
 
@@ -40,6 +41,15 @@ class Mode(Enum):
     TRAIN = 'train'
     VALID = 'valid'
     TEST = 'test'
+
+
+@contextmanager
+def optional(condition, context_manager):
+    if condition:
+        with context_manager():
+            yield
+    else:
+        yield
 
 
 def print_time(prefix=''):
@@ -89,7 +99,7 @@ def get_decoder_loss(loss_fn, decoder_outputs, targets, ignore_padding=const.IGN
     return loss / target_length
 
 
-def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, config, experiment=None, epoch=0):
+def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, config, experiment=None, epoch=0):
     joint_module = getattr(joint_embedder, 'module', joint_embedder)      # get module if wrapped in DDP
     n_decoders = len(joint_module.decoders)
     input_lang = dataloader.dataset.input_lang
@@ -122,14 +132,21 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, config, exper
         input_length = inputs[0].size(0)
         target_length = targets[0].size(0)
 
-        decoders_outputs, outputs_seqs = joint_embedder(inputs, target_length)
-        
-        for decoder_outputs in decoders_outputs:
-            batch_loss += get_decoder_loss(loss_fn, decoder_outputs.permute(1, 0, 2), targets.T, 
-                                           config['ignore_padding_in_loss'])
-        if mode == Mode.TRAIN:
-            batch_loss.backward()
-            optimizer.step()
+        with optional(config['fp16'] and scaler, torch.cuda.amp.autocast):
+            decoders_outputs, outputs_seqs = joint_embedder(inputs, target_length)
+
+            for decoder_outputs in decoders_outputs:
+                batch_loss += get_decoder_loss(loss_fn, decoder_outputs.permute(1, 0, 2), targets.T,
+                                               config['ignore_padding_in_loss'])
+
+            if mode == Mode.TRAIN:
+                if scaler:
+                    scaler.scale(batch_loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    batch_loss.backward()
+                    optimizer.step()
 
         if const.LOG_IN_TRAINING or mode != Mode.TRAIN:
             batch_loss = batch_loss.item()
@@ -158,16 +175,16 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, config, exper
     return epoch_loss, statistics.mean(epoch_accuracies) if epoch_accuracies else 0
 
 
-def train_loop(joint_embedder, optimizer, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.TRAIN, joint_embedder, optimizer, dataloader, loss_fn, config, experiment, epoch)
+def train_loop(joint_embedder, optimizer, dataloader, loss_fn, scaler, config, experiment=None, epoch=0):
+    return go(Mode.TRAIN, joint_embedder, optimizer, dataloader, loss_fn, scaler, config, experiment, epoch)
 
 
 def valid_loop(joint_embedder, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.VALID, joint_embedder, None, dataloader, loss_fn, config, experiment, epoch)
+    return go(Mode.VALID, joint_embedder, None, dataloader, loss_fn, None, config, experiment, epoch)
 
 
 def test_loop(joint_embedder, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.TEST, joint_embedder, None, dataloader, loss_fn, config, experiment, epoch)
+    return go(Mode.TEST, joint_embedder, None, dataloader, loss_fn, None, config, experiment, epoch)
 
 
 def go_train(rank, world_size, experiment_name, port, train_data=None, valid_data=None):
@@ -187,6 +204,8 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
     train_sampler = None
     valid_sampler = None
 
+    scaler = None
+
     experiment = Experiment(experiment_name)
     experiment.log_initial_metrics(world_size, len(train_data), len(valid_data), input_lang.n_words, output_lang.n_words)
 
@@ -199,6 +218,7 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
         valid_sampler = torch.utils.data.distributed.DistributedSampler(valid_data, shuffle=const.SHUFFLE_DATA)
 
         joint_embedder = DistributedDataParallel(joint_embedder.to(const.DEVICE), device_ids=[rank])
+        scaler = torch.cuda.amp.GradScaler()
 
     shuffle = const.SHUFFLE_DATA if (train_sampler is None) else None
     dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=shuffle,
@@ -223,6 +243,7 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
         'grad_clipping_max_norm': const.GRADIENT_CLIPPING_MAX_NORM,
         'grad_clipping_norm_type': const.GRADIENT_CLIPPING_NORM_TYPE,
         'device': const.DEVICE,
+        'fp16': const.FP16,
     }
 
     with profiler.Profiler(active=const.PROFILER_IS_ACTIVE) as p:
@@ -232,8 +253,8 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
                 train_sampler.set_epoch(epoch)
                 valid_sampler.set_epoch(epoch)
 
-            train_loop(joint_embedder, optimizer, dataloader, loss_fn, config, experiment, epoch=epoch)
-            valid_loss, valid_accuracy = valid_loop(joint_embedder, valid_dataloader, loss_fn, config, experiment, 
+            train_loop(joint_embedder, optimizer, dataloader, loss_fn, scaler, config, experiment, epoch=epoch)
+            valid_loss, valid_accuracy = valid_loop(joint_embedder, valid_dataloader, loss_fn, config, experiment,
                                                     epoch=epoch)
 
             experiment.log_learning_rate(optimizer.param_groups[0]['lr'], epoch=epoch)

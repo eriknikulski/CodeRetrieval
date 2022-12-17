@@ -89,6 +89,7 @@ MIN_CHECKPOINT_EPOCH = 500
 MIN_CHECKPOINT_EPOCH_DIST = 100
 LOG_BATCHES = True
 LOG_IN_TRAINING = False
+FP16 = False
 
 MIN_NUM_TOKENS = 5
 MIN_LENGTH_DOCSTRING = 3
@@ -136,6 +137,7 @@ def get_hyperparams(params=None):
         'setup   min_checkpoint_epoch_dist': MIN_CHECKPOINT_EPOCH_DIST,
         'setup   log_batches': LOG_BATCHES,
         'setup   log_in_training': LOG_IN_TRAINING,
+        'setup   fp16': FP16,
 
         'data   min_num_tokens': MIN_NUM_TOKENS,
         'data   min_length_docstring': MIN_LENGTH_DOCSTRING,
