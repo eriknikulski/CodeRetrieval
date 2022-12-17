@@ -107,7 +107,7 @@ class DecoderRNNWrapped(nn.Module):
 
         for di in range(target_length):
             decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden)
-            topv, topi = decoder_output.topk(1)
+            _, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze(dim=1).detach()  # detach from history as input
 
             decoder_outputs.append(decoder_output)
@@ -127,7 +127,7 @@ class JointEmbeder(nn.Module):
     
     def forward(self, inputs, target_length):
         encoder = random.choice(self.encoders)
-        encoder_output, encoder_hidden = encoder(inputs)
+        _, encoder_hidden = encoder(inputs)
         
         decoder_outputs, output_seqs = [], []
         
