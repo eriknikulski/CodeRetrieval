@@ -53,10 +53,14 @@ class Lang:
     def seq_from_tensor(self, tensor):
         return self.seq_from_indices(el.item() for el in tensor)
 
-    def reduce_vocab(self, min_freq):
-        for word in self.word2index.keys():
-            if self.word2count[word] < min_freq:
-                del self.word2count[word]
+    def reduce_vocab(self, min_freq=None, max_tokens=None):
+        assert min_freq or max_tokens
+        if min_freq:
+            for word in self.word2index.keys():
+                if self.word2count[word] < min_freq:
+                    del self.word2count[word]
+        else:
+            self.word2count = dict(sorted(self.word2count.items(), key=lambda item: item[1], reverse=True))
         self.rebuild_indices()
 
     def rebuild_indices(self):
