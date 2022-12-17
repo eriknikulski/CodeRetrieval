@@ -80,6 +80,7 @@ PREPROCESS_VOCAB_FREQ_THRESHOLD = 5
 PREPROCESS_USE_BPE = False
 
 LABELS_ONLY = False
+TARGETS_ONLY = False
 IGNORE_PADDING_IN_LOSS = False
 SHUFFLE_DATA = True
 CUDA_DEVICE_COUNT = 0
@@ -130,6 +131,7 @@ def get_hyperparams(params=None):
         'profiler   repeat': PROFILER_REPEAT,
 
         'setup   labels_only': LABELS_ONLY,
+        'setup   targets_only': TARGETS_ONLY,
         'setup   ignore_padding_in_loss': IGNORE_PADDING_IN_LOSS,
         'setup   shuffle_data': SHUFFLE_DATA,
         'setup   cuda_device_count': CUDA_DEVICE_COUNT,

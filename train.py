@@ -30,7 +30,8 @@ import profiler
 
 parser = argparse.ArgumentParser(description='ML model for sequence to sequence translation')
 parser.add_argument('-d', '--data', choices=['java', 'synth'], help='The data to be used.')
-parser.add_argument('-lo', '--labels-only', action='store_true', default=False, help='The data to be used.')
+parser.add_argument('-lo', '--labels-only', action='store_true', default=False, help='Train label to label.')
+parser.add_argument('-to', '--targets-only', action='store_true', default=False, help='Train target to target')
 parser.add_argument('-ld', '--load-data', action='store_true', default=False, help='Load preprocessed data.')
 parser.add_argument('-kd', '--keep-duplicates', action='store_true', default=False, help='Do not remove duplicates in data.')
 parser.add_argument('-g', '--gpu', action='store_true', default=False, help='Run on GPU(s).')
@@ -279,8 +280,13 @@ def run(args):
     else:
         data_path = const.SYNTH_PATH
 
+    assert not (args.labels_only and args.targets_only)
+
     if args.labels_only:
         const.LABELS_ONLY = True
+
+    if args.targets_only:
+        const.TARGETS_ONLY = True
 
     if args.keep_duplicates:
         remove_duplicates = False
@@ -304,14 +310,23 @@ def run(args):
             valid_data = pickle.load(valid_file)
             valid_data.enforce_length_constraints()
 
-        if const.LABELS_ONLY:
-            train_data.df['code_tokens'] = train_data.df['docstring_tokens']
-            test_data.df['code_tokens'] = test_data.df['docstring_tokens']
-            valid_data.df['code_tokens'] = valid_data.df['docstring_tokens']
+        if const.LABELS_ONLY or const.TARGETS_ONLY:
+            if const.LABELS_ONLY:
+                train_data.df['code_tokens'] = train_data.df['docstring_tokens']
+                test_data.df['code_tokens'] = test_data.df['docstring_tokens']
+                valid_data.df['code_tokens'] = valid_data.df['docstring_tokens']
 
-            train_data.output_lang = train_data.input_lang
-            test_data.output_lang = test_data.input_lang
-            valid_data.output_lang = valid_data.input_lang
+                train_data.output_lang = train_data.input_lang
+                test_data.output_lang = test_data.input_lang
+                valid_data.output_lang = valid_data.input_lang
+            if const.TARGETS_ONLY:
+                train_data.df['docstring_tokens'] = train_data.df['code_tokens']
+                test_data.df['docstring_tokens'] = test_data.df['code_tokens']
+                valid_data.df['docstring_tokens'] = valid_data.df['code_tokens']
+
+                train_data.input_lang = train_data.output_lang
+                test_data.input_lang = test_data.output_lang
+                valid_data.input_lang = valid_data.output_lang
 
             if not const.SHUFFLE_DATA:
                 train_data.sort()
