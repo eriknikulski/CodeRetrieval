@@ -203,6 +203,8 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
 
     input_lang = train_data.input_lang
     output_lang = train_data.output_lang
+    input_lang_size = train_data.input_lang.n_words
+    output_lang_size = train_data.output_lang.n_words
 
     train_sampler = None
     valid_sampler = None
@@ -210,11 +212,13 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
     scaler = None
 
     experiment = Experiment(experiment_name)
-    experiment.log_initial_metrics(world_size, len(train_data), len(valid_data), input_lang.n_words, output_lang.n_words)
+    experiment.log_initial_metrics(world_size, len(train_data), len(valid_data), input_lang_size, output_lang_size)
 
-    encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
-    decoder = model.DecoderRNNWrapped(const.HIDDEN_SIZE, output_lang.n_words, const.BATCH_SIZE, output_lang)
-    joint_embedder = model.JointEmbeder([encoder], [decoder])
+    encoder_doc = model.EncoderRNN(input_lang_size, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
+    encoder_code = model.EncoderRNN(output_lang_size, const.HIDDEN_SIZE, const.BATCH_SIZE, output_lang)
+    decoder_doc = model.DecoderRNNWrapped(const.HIDDEN_SIZE, input_lang_size, const.BATCH_SIZE, input_lang)
+    decoder_code = model.DecoderRNNWrapped(const.HIDDEN_SIZE, output_lang_size, const.BATCH_SIZE, output_lang)
+    joint_embedder = model.JointEmbeder([encoder_doc, encoder_code], [decoder_doc, decoder_code])
 
     if ddp.is_dist_avail_and_initialized():
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=const.SHUFFLE_DATA)
