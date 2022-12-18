@@ -60,7 +60,7 @@ class Lang:
                 if self.word2count[word] < min_freq:
                     del self.word2count[word]
         else:
-            self.word2count = dict(sorted(self.word2count.items(), key=lambda item: item[1], reverse=True))
+            self.word2count = dict(sorted(self.word2count.items(), key=lambda item: item[1], reverse=True)[:max_tokens])
         self.rebuild_indices()
 
     def rebuild_indices(self):
