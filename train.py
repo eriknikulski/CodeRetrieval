@@ -171,7 +171,8 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, confi
         epoch_accuracies = list(map(lambda x: x / num_batches, epoch_accuracies))
 
         if experiment:
-            translations = comet.generate_text_seq(input_lang, output_lang, inputs[:5], outputs_seqs[::, :5], epoch)
+            outputs_seqs = [out[:5] for out in outputs_seqs]
+            translations = comet.generate_text_seq(input_lang, output_lang, inputs[:5], outputs_seqs, epoch)
             experiment.log_epoch_metrics(mode.value, epoch_loss, epoch_accuracies, translations, epoch=epoch)
 
     torch.set_grad_enabled(True)

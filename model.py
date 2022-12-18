@@ -136,4 +136,4 @@ class JointEmbeder(nn.Module):
             decoder_outputs.append(_decoder_outputs)
             output_seqs.append(_output_seqs)
         
-        return torch.stack(decoder_outputs), torch.stack(output_seqs)
+        return decoder_outputs, output_seqs
