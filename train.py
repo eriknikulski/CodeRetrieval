@@ -229,7 +229,9 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=const.SHUFFLE_DATA)
         valid_sampler = torch.utils.data.distributed.DistributedSampler(valid_data, shuffle=const.SHUFFLE_DATA)
 
-        joint_embedder = DistributedDataParallel(joint_embedder.to(const.DEVICE), device_ids=[rank])
+        joint_embedder = DistributedDataParallel(joint_embedder.to(const.DEVICE),
+                                                 find_unused_parameters=const.DDP_FIND_UNUSED_PARAMETER,
+                                                 device_ids=[rank])
         scaler = torch.cuda.amp.GradScaler()
 
     shuffle = const.SHUFFLE_DATA if (train_sampler is None) else None

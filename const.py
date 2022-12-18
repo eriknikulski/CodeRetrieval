@@ -93,6 +93,7 @@ LOG_IN_TRAINING = False
 FP16 = True
 ALLOW_TF32 = True
 SET_GRADIENTS_NONE = True
+DDP_FIND_UNUSED_PARAMETER = True
 
 MIN_NUM_TOKENS = 5
 MIN_LENGTH_DOCSTRING = 3
@@ -144,6 +145,7 @@ def get_hyperparams(params=None):
         'setup   fp16': FP16,
         'setup   allow_tf32': ALLOW_TF32,
         'setup   set_gradients_none': SET_GRADIENTS_NONE,
+        'setup   ddp_find_unused_parameter': DDP_FIND_UNUSED_PARAMETER,
 
         'data   min_num_tokens': MIN_NUM_TOKENS,
         'data   min_length_docstring': MIN_LENGTH_DOCSTRING,
