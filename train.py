@@ -101,6 +101,13 @@ def get_decoder_loss(loss_fn, decoder_outputs, targets, ignore_padding=const.IGN
     return loss / target_length
 
 
+def criterion(loss_fn, outputs, targets, config):
+    loss = 0
+    for i, output in enumerate(outputs):
+        loss += get_decoder_loss(loss_fn, output.permute(1, 0, 2), targets[i].T, config['ignore_padding_in_loss'])
+    return loss
+
+
 def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, config, experiment=None, epoch=0):
     joint_module = getattr(joint_embedder, 'module', joint_embedder)      # get module if wrapped in DDP
     n_decoders = len(joint_module.decoders)
@@ -136,11 +143,8 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, confi
         target_length = targets[0].size(0)
 
         with optional(config['fp16'] and scaler, torch.cuda.amp.autocast):
-            decoders_outputs, outputs_seqs = joint_embedder(inputs, target_length)
-
-        for decoder_outputs in decoders_outputs:
-            batch_loss += get_decoder_loss(loss_fn, decoder_outputs.permute(1, 0, 2), targets.T,
-                                           config['ignore_padding_in_loss'])
+            decoders_outputs, outputs_seqs = joint_embedder(inputs, [input_length, target_length])
+        batch_loss = criterion(loss_fn, decoders_outputs, [inputs, targets], config)
 
         if mode == Mode.TRAIN:
             if scaler:

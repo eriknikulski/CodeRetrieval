@@ -125,14 +125,14 @@ class JointEmbeder(nn.Module):
         self.encoders = nn.ModuleList(encoders)
         self.decoders = nn.ModuleList(decoders)
     
-    def forward(self, inputs, target_length):
+    def forward(self, inputs, lengths):
         encoder = random.choice(self.encoders)
         _, encoder_hidden = encoder(inputs)
         
         decoder_outputs, output_seqs = [], []
         
-        for decoder in self.decoders:
-            _decoder_outputs, _output_seqs = decoder(encoder_hidden[0], target_length)
+        for i, decoder in enumerate(self.decoders):
+            _decoder_outputs, _output_seqs = decoder(encoder_hidden[0], lengths[i])
             decoder_outputs.append(_decoder_outputs)
             output_seqs.append(_output_seqs)
         
