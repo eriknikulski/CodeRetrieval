@@ -138,18 +138,18 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, confi
         with optional(config['fp16'] and scaler, torch.cuda.amp.autocast):
             decoders_outputs, outputs_seqs = joint_embedder(inputs, target_length)
 
-            for decoder_outputs in decoders_outputs:
-                batch_loss += get_decoder_loss(loss_fn, decoder_outputs.permute(1, 0, 2), targets.T,
-                                               config['ignore_padding_in_loss'])
+        for decoder_outputs in decoders_outputs:
+            batch_loss += get_decoder_loss(loss_fn, decoder_outputs.permute(1, 0, 2), targets.T,
+                                           config['ignore_padding_in_loss'])
 
-            if mode == Mode.TRAIN:
-                if scaler:
-                    scaler.scale(batch_loss).backward()
-                    scaler.step(optimizer)
-                    scaler.update()
-                else:
-                    batch_loss.backward()
-                    optimizer.step()
+        if mode == Mode.TRAIN:
+            if scaler:
+                scaler.scale(batch_loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                batch_loss.backward()
+                optimizer.step()
 
         if const.LOG_IN_TRAINING or mode != Mode.TRAIN:
             batch_loss = batch_loss.item()
