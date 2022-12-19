@@ -83,28 +83,20 @@ def get_correct(results, targets):
     return (results_masked == targets_masked).all(axis=1).sum().item()
 
 
-def get_decoder_loss(loss_fn, decoder_outputs, targets, ignore_padding=const.IGNORE_PADDING_IN_LOSS):
+def get_decoder_loss(loss_fn, decoder_outputs, targets):
     loss = 0
-    device = targets.device
     target_length = targets.shape[0]
 
     for i in range(target_length):
-        current_target = targets[i]
-        decoder_output = decoder_outputs[i]
-        current_loss = loss_fn(decoder_output, current_target)
-    
-        if ignore_padding:
-            loss_mask = current_target != const.PAD_TOKEN
-            loss_masked = current_loss.where(loss_mask, torch.tensor(0.0, device=device))
-            current_loss = loss_masked.sum() / loss_mask.sum() if loss_mask.sum() else 0
+        current_loss = loss_fn(decoder_outputs[i], targets[i])
         loss += current_loss
     return loss / target_length
 
 
-def criterion(loss_fn, outputs, targets, config):
+def criterion(loss_fn, outputs, targets):
     loss = 0
     for i, output in enumerate(outputs):
-        loss += get_decoder_loss(loss_fn, output.permute(1, 0, 2), targets[i].T, config['ignore_padding_in_loss'])
+        loss += get_decoder_loss(loss_fn, output.permute(1, 0, 2), targets[i].T)
     return loss
 
 
@@ -144,7 +136,7 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, confi
 
         with optional(config['fp16'] and scaler, torch.cuda.amp.autocast):
             decoders_outputs, outputs_seqs = joint_embedder(inputs, [input_length, target_length])
-        batch_loss = criterion(loss_fn, decoders_outputs, [inputs, targets], config)
+        batch_loss = criterion(loss_fn, decoders_outputs, [inputs, targets])
 
         if mode == Mode.TRAIN:
             if scaler:
@@ -242,7 +234,7 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
                                          collate_fn=pad_collate.collate, sampler=valid_sampler, drop_last=True,
                                          num_workers=const.NUM_WORKERS_DATALOADER, pin_memory=const.PIN_MEMORY)
 
-    loss_fn = nn.NLLLoss(reduction='none') if const.IGNORE_PADDING_IN_LOSS else nn.NLLLoss()
+    loss_fn = nn.NLLLoss(ignore_index=const.PAD_TOKEN if const.IGNORE_PADDING_IN_LOSS else -100)
     optimizer = optim.SGD(joint_embedder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
 
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
@@ -252,7 +244,6 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
         'bidirectional': const.BIDIRECTIONAL,
         'encoder_layers': const.ENCODER_LAYERS,
         'hidden_size': const.HIDDEN_SIZE,
-        'ignore_padding_in_loss': const.IGNORE_PADDING_IN_LOSS,
         'grad_clipping_enabled': const.GRADIENT_CLIPPING_ENABLED,
         'grad_clipping_max_norm': const.GRADIENT_CLIPPING_MAX_NORM,
         'grad_clipping_norm_type': const.GRADIENT_CLIPPING_NORM_TYPE,
