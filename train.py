@@ -121,12 +121,9 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, confi
         joint_embedder.eval()
         torch.set_grad_enabled(False)
     
-    for batch, (inputs, targets, urls) in enumerate(dataloader):
-        inputs = inputs.to(config['device'], non_blocking=True)
-        targets = targets.to(config['device'], non_blocking=True)
-
-        batch_loss = 0
-        batch_accuracies = []
+    for batch, batch_data in enumerate(dataloader):
+        doc_seqs, doc_seq_lengths, code_seqs, code_seq_lengths, methode_names, methode_name_lengths, code_tokens = \
+            (elem.to(config['device'], non_blocking=True) if torch.is_tensor(elem) else elem for elem in batch_data)
         
         if mode == Mode.TRAIN:
             optimizer.zero_grad(set_to_none=const.SET_GRADIENTS_NONE)

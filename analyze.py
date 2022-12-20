@@ -37,7 +37,7 @@ def analyze_vocab_dataset():
         train_data.enforce_length_constraints()
 
     analyze_vocab(train_data.input_lang.word2count)
-    analyze_entries(train_data.df['docstring_tokens'].map(len).to_numpy())
+    analyze_entries(train_data.df[['docstring_tokens']].applymap(len).to_list())
 
 
 def analyze_vocab_train_file(train_file_path=const.PREPROCESS_BPE_TRAIN_PATH_DOC):

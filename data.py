@@ -1,3 +1,4 @@
+import itertools
 import re
 
 import javalang
@@ -45,7 +46,7 @@ class Lang:
     def tensor_from_sequence(self, seq, oov_token=const.OOV_TOKEN):
         indexes = self.indexes_from_sequence(seq, oov_token)
         indexes.append(const.EOS_TOKEN)
-        return torch.tensor(indexes, dtype=torch.long, device=const.DEVICE)
+        return torch.tensor(indexes, dtype=torch.long)
 
     def seq_from_indices(self, idcs):
         return [self.index2word[idx] for idx in idcs]
@@ -84,10 +85,6 @@ def unicode_to_ascii(s):
     )
 
 
-def normalize_seq(s):
-    return [el.strip() for el in [normalize_string(el) for el in s] if el.strip()]
-
-
 def normalize_docstring(s):
     if s[-1] == '.':
         s = s[:-1]
@@ -122,26 +119,29 @@ def normalize_docstring(s):
     return s
 
 
+def split_subtokens(s):
+    re_words = re.compile(r'''
+                # Find words in a string. Order matters!
+                [A-Z]+(?=[A-Z][a-z]) |  # All upper case before a capitalized word
+                [A-Z]?[a-z]+ |  # Capitalized words / all lower case
+                [A-Z]+ |  # All upper case
+                \d+ | # Numbers
+                .+
+            ''', re.VERBOSE)
+    return [sub_token for sub_token in re_words.findall(s) if not sub_token == '_']
+
+
 def normalize_code(s):
-    RE_WORDS = re.compile(r'''
-            # Find words in a string. Order matters!
-            [A-Z]+(?=[A-Z][a-z]) |  # All upper case before a capitalized word
-            [A-Z]?[a-z]+ |  # Capitalized words / all lower case
-            [A-Z]+ |  # All upper case
-            \d+ | # Numbers
-            .+
-        ''', re.VERBOSE)
-
-    def split_subtokens(s):
-        return [sub_token for sub_token in RE_WORDS.findall(s) if not sub_token == '_']
-
-    modifiers = ['public', 'private', 'protected', 'static']
     s = s.encode('ascii', 'ignore').decode('ascii')
-    # remove annotations
-    s = re.sub(r'^\s*@.*', r'', s)
+    return re.sub(r'^\s*@.*', r'', s, flags=re.MULTILINE)
+
+
+def transform_code_sequence(s):
+    s = normalize_code(s)
 
     tokens = list(javalang.tokenizer.tokenize(s))
-    s = ' '.join([' '.join(split_subtokens(i.value)) for i in tokens if i.value not in modifiers])
+    s = ' '.join([' '.join(split_subtokens(tok.value)) for tok in tokens
+                  if not isinstance(tok, javalang.tokenizer.Modifier)])
 
     # replace text
     s = re.sub(r'""".*"""', const.TEXT_TOKEN, s)
@@ -151,7 +151,26 @@ def normalize_code(s):
     return s
 
 
-def normalize_string(s):
-    s = unicode_to_ascii(s.lower().strip())
-    s = re.sub(r'[^a-zA-Z]+', r' ', s)
-    return s
+def get_code_methode_name(s):
+    s = normalize_code(s)
+
+    tokens = list(javalang.tokenizer.tokenize(s))
+    return next((split_subtokens(elem.value) for i, elem in enumerate(tokens)
+                 if isinstance(elem, javalang.tokenizer.Identifier) and i < len(tokens) and tokens[i + 1].value == '('),
+                [])
+
+
+def get_code_tokens(s):
+    s = normalize_code(s)
+
+    remove = [
+        javalang.tokenizer.Separator,
+        javalang.tokenizer.Operator,
+        javalang.tokenizer.Literal,
+        javalang.tokenizer.Modifier,
+    ]
+
+    tokens = list(javalang.tokenizer.tokenize(s))
+
+    return list(itertools.chain.from_iterable(split_subtokens(tok.value) for tok in tokens
+                                              if not any(map(lambda c: isinstance(tok, c), remove))))

@@ -28,7 +28,8 @@ def create_set(alphabet, length, n):
         sample = random.sample(alphabet, length)
         if sample not in samples:
             samples.append(sample)
-    return [{"docstring_tokens": sample, "code_tokens": random.sample(alphabet, length), "url": None} for sample in samples]
+    return [{"docstring_tokens": sample, "code_sequence": random.sample(alphabet, length), "url": None}
+            for sample in samples]
 
 
 def create():

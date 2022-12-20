@@ -1,7 +1,6 @@
 import argparse
 import pickle
 
-import pandas as pd
 from subword_nmt import subword_nmt
 
 import const
@@ -11,7 +10,8 @@ import loader
 parser = argparse.ArgumentParser(description='ML model for sequence to sequence translation')
 parser.add_argument('-d', '--data', choices=['java', 'synth'], help='The data to be used.')
 parser.add_argument('-lo', '--labels-only', action='store_true', default=False, help='The data to be used.')
-parser.add_argument('-kd', '--keep-duplicates', action='store_true', default=False, help='Do not remove duplicates in data.')
+parser.add_argument('-kd', '--keep-duplicates', action='store_true', default=False,
+                    help='Do not remove duplicates in data.')
 
 
 def run(args):
@@ -29,11 +29,14 @@ def run(args):
         remove_duplicates = True
 
     train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', labels_only=const.LABELS_ONLY,
-                                    build_language=False, remove_duplicates=remove_duplicates, to_tensors=False, sort=False,)
+                                    build_language=False, remove_duplicates=remove_duplicates, to_tensors=False,
+                                    sort=False,)
     test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/', labels_only=const.LABELS_ONLY,
-                                   build_language=False, remove_duplicates=remove_duplicates, to_tensors=False, sort=False)
+                                   build_language=False, remove_duplicates=remove_duplicates, to_tensors=False,
+                                   sort=False)
     valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/', labels_only=const.LABELS_ONLY,
-                                    build_language=False, remove_duplicates=remove_duplicates, to_tensors=False, sort=False)
+                                    build_language=False, remove_duplicates=remove_duplicates, to_tensors=False,
+                                    sort=False)
 
     print('Creating training files...')
     with open(const.PREPROCESS_BPE_TRAIN_PATH_DOC, 'w', encoding='utf-8') as train_file:
@@ -45,11 +48,11 @@ def run(args):
             train_file.write(f'{" ".join(text)}\n')
     if not const.LABELS_ONLY:
         with open(const.PREPROCESS_BPE_TRAIN_PATH_CODE, 'w', encoding='utf-8') as train_file:
-            for text in train_data.df['code_tokens']:
+            for text in train_data.df['code_sequence']:
                 train_file.write(f'{" ".join(text)}\n')
-            for text in test_data.df['code_tokens']:
+            for text in test_data.df['code_sequence']:
                 train_file.write(f'{" ".join(text)}\n')
-            for text in valid_data.df['code_tokens']:
+            for text in valid_data.df['code_sequence']:
                 train_file.write(f'{" ".join(text)}\n')
 
     if const.PREPROCESS_USE_BPE:
@@ -84,15 +87,15 @@ def run(args):
                     open(const.PREPROCESS_BPE_VOCAB_PATH_CODE, encoding='utf-8') as vocab_file:
                 vocab = subword_nmt.read_vocabulary(vocab_file, const.PREPROCESS_VOCAB_FREQ_THRESHOLD)
                 bpe = subword_nmt.BPE(codes_file, vocab=vocab)
-                train_data.df[['code_tokens']] = train_data.df[['code_tokens']].applymap(bpe.segment_tokens)
-                test_data.df[['code_tokens']] = test_data.df[['code_tokens']].applymap(bpe.segment_tokens)
-                valid_data.df[['code_tokens']] = valid_data.df[['code_tokens']].applymap(bpe.segment_tokens)
+                train_data.df[['code_sequence']] = train_data.df[['code_sequence']].applymap(bpe.segment_tokens)
+                test_data.df[['code_sequence']] = test_data.df[['code_sequence']].applymap(bpe.segment_tokens)
+                valid_data.df[['code_sequence']] = valid_data.df[['code_sequence']].applymap(bpe.segment_tokens)
 
     print('Working on dataframe...')
     if const.LABELS_ONLY:
-        train_data.df[['code_tokens']] = train_data.df[['docstring_tokens']]
-        test_data.df[['code_tokens']] = test_data.df[['docstring_tokens']]
-        valid_data.df[['code_tokens']] = valid_data.df[['docstring_tokens']]
+        train_data.df[['code_sequence']] = train_data.df[['docstring_tokens']]
+        test_data.df[['code_sequence']] = test_data.df[['docstring_tokens']]
+        valid_data.df[['code_sequence']] = valid_data.df[['docstring_tokens']]
 
     print('Building languages...')
     input_lang = data.Lang('docstring')
@@ -111,15 +114,12 @@ def run(args):
         test_data.sort()
         valid_data.sort()
 
-    df_all = pd.concat([train_data.df, test_data.df, valid_data.df])
-
     print('Saving...')
     pickle.dump(train_data, open(const.DATA_TRAIN_PATH, 'wb'))
     pickle.dump(test_data, open(const.DATA_TEST_PATH, 'wb'))
     pickle.dump(valid_data, open(const.DATA_VALID_PATH, 'wb'))
     pickle.dump(input_lang, open(const.DATA_INPUT_LANG_PATH, 'wb'))
     pickle.dump(output_lang, open(const.DATA_OUTPUT_LANG_PATH, 'wb'))
-    df_all.to_pickle(const.DATA_ALL_DF_PATH)
 
 
 if __name__ == '__main__':

@@ -37,13 +37,14 @@ def preprocess(sentence, input_lang, bpe):
 
 
 def match(seq, df):
-    res = df[df[['code_tokens']].applymap(lambda x: x == seq).values]
+    res = df[df[['code_sequence']].applymap(lambda x: x == seq).values]
     if len(res):
         return res
     return pd.DataFrame({'url': None}, index=[0])
 
 
 def run():
+    # TODO: rework
     input_lang_file = open(const.DATA_INPUT_LANG_PATH, 'rb')
     input_lang = pickle.load(input_lang_file)
     output_lang_file = open(const.DATA_OUTPUT_LANG_PATH, 'rb')
@@ -60,7 +61,7 @@ def run():
 
     queries = pd.read_csv(const.QUERY_CSV_PATH)
     all_data = pd.read_pickle(const.DATA_ALL_DF_PATH)
-    all_data[['code_tokens']] = all_data[['code_tokens']].applymap(lambda x: list(x.flatten()))
+    all_data[['code_sequence']] = all_data[['code_sequence']].applymap(lambda x: list(x.flatten()))
 
     with open(const.PREPROCESS_BPE_CODES_PATH, encoding='utf-8') as codes_file:
         bpe = subword_nmt.BPE(codes_file)
