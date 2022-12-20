@@ -2,12 +2,10 @@ from __future__ import unicode_literals, print_function, division
 import argparse
 import pickle
 import random
-import statistics
 import string
 import time
 from contextlib import contextmanager
 from enum import Enum
-from operator import add
 
 import comet_ml
 import torch
@@ -80,7 +78,18 @@ def get_correct(results, targets):
     device = targets.device
     results_masked = results.where(targets_mask, torch.tensor(-1, device=device))
     targets_masked = targets.where(targets_mask, torch.tensor(-1, device=device))
-    return (results_masked == targets_masked).all(axis=1).sum().item()
+    return (results_masked == targets_masked).all(axis=1).sum()
+
+
+def get_accuracies(outputs_seqs, doc_seqs, code_seqs, arch, batch_size):
+    if arch.n_decoders == 2:
+        return torch.stack((get_correct(outputs_seqs[0], doc_seqs) / batch_size,
+                            get_correct(outputs_seqs[1], code_seqs) / batch_size))
+
+    if arch.Type.DOC in arch.decoders:
+        return (get_correct(outputs_seqs[0], doc_seqs) / batch_size).unsqueeze(0)
+    if arch.Type.CODE in arch.decoders:
+        return (get_correct(outputs_seqs[0], code_seqs) / batch_size).unsqueeze(0)
 
 
 def get_decoder_loss(loss_fn, decoder_outputs, targets):
@@ -100,9 +109,9 @@ def criterion(loss_fn, outputs, targets):
     return loss
 
 
-def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, config, experiment=None, epoch=0):
+def go(mode: Mode, arch: model.Architecture, joint_embedder, optimizer, dataloader, loss_fn, scaler, config,
+       experiment=None, epoch=0):
     joint_module = getattr(joint_embedder, 'module', joint_embedder)      # get module if wrapped in DDP
-    n_decoders = len(joint_module.decoders)
     input_lang = dataloader.dataset.input_lang
     output_lang = dataloader.dataset.output_lang
 
@@ -111,8 +120,8 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, confi
     num_batches = int(size / config['batch_size'])
     
     epoch_loss = 0
-    epoch_accuracies = []
-    inputs = None
+    epoch_accuracies = torch.zeros(arch.n_decoders)
+    doc_seqs = []
     outputs_seqs = None
     
     if mode == Mode.TRAIN:
@@ -128,12 +137,14 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, confi
         if mode == Mode.TRAIN:
             optimizer.zero_grad(set_to_none=const.SET_GRADIENTS_NONE)
 
-        input_length = inputs[0].size(0)
-        target_length = targets[0].size(0)
+        encoder_id = arch.get_rand_encoder_id()
+        encoder_inputs = arch.get_encoder_input(encoder_id, doc_seqs, doc_seq_lengths, code_seqs, code_seq_lengths,
+                                                methode_names, methode_name_lengths, code_tokens)
+        decoder_sizes = arch.get_decoder_sizes(doc_seqs[0].size(0), code_seqs[0].size(0))
 
         with optional(config['fp16'] and scaler, torch.cuda.amp.autocast):
-            decoders_outputs, outputs_seqs = joint_embedder(inputs, [input_length, target_length])
-        batch_loss = criterion(loss_fn, decoders_outputs, [inputs, targets])
+            decoders_outputs, outputs_seqs = joint_embedder(encoder_id, encoder_inputs, decoder_sizes)
+        batch_loss = criterion(loss_fn, decoders_outputs, [doc_seqs, code_seqs])
 
         if mode == Mode.TRAIN:
             if scaler:
@@ -145,13 +156,9 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, confi
                 optimizer.step()
 
         if const.LOG_IN_TRAINING or mode != Mode.TRAIN:
-            batch_loss = batch_loss.item()
             epoch_loss += batch_loss
-            # calc percentage of correctly generated sequences
-            batch_accuracies.append(get_correct(outputs_seqs[-1], targets) / config['batch_size'])      # acc regen code
-            if n_decoders > 1:
-                batch_accuracies.append(get_correct(outputs_seqs[0], inputs) / config['batch_size'])    # acc regen doc
-            epoch_accuracies = map(add, epoch_accuracies, batch_accuracies) if epoch_accuracies else batch_accuracies
+            batch_accuracies = get_accuracies(outputs_seqs, doc_seqs, code_seqs, arch, config['batch_size'])
+            epoch_accuracies += batch_accuracies
 
             if experiment and mode == Mode.TRAIN and const.LOG_BATCHES:
                 grad_norms = [get_grad_norm(module) for module_list in joint_module.children()
@@ -161,27 +168,27 @@ def go(mode: Mode, joint_embedder, optimizer, dataloader, loss_fn, scaler, confi
 
     if const.LOG_IN_TRAINING or mode != Mode.TRAIN:
         epoch_loss /= num_batches
-        epoch_accuracies = list(map(lambda x: x / num_batches, epoch_accuracies))
+        epoch_accuracies /= num_batches
 
         if experiment:
             outputs_seqs = [out[:5] for out in outputs_seqs]
-            translations = comet.generate_text_seq(input_lang, output_lang, inputs[:5], outputs_seqs, epoch)
+            translations = comet.generate_text_seq(input_lang, output_lang, doc_seqs[:5], outputs_seqs, epoch)
             experiment.log_epoch_metrics(mode.value, epoch_loss, epoch_accuracies, translations, epoch=epoch)
 
     torch.set_grad_enabled(True)
-    return epoch_loss, statistics.mean(epoch_accuracies) if epoch_accuracies else 0
+    return epoch_loss, torch.mean(epoch_accuracies)
 
 
-def train_loop(joint_embedder, optimizer, dataloader, loss_fn, scaler, config, experiment=None, epoch=0):
-    return go(Mode.TRAIN, joint_embedder, optimizer, dataloader, loss_fn, scaler, config, experiment, epoch)
+def train_loop(joint_embedder, arch, optimizer, dataloader, loss_fn, scaler, config, experiment=None, epoch=0):
+    return go(Mode.TRAIN, arch, joint_embedder, optimizer, dataloader, loss_fn, scaler, config, experiment, epoch)
 
 
-def valid_loop(joint_embedder, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.VALID, joint_embedder, None, dataloader, loss_fn, None, config, experiment, epoch)
+def valid_loop(joint_embedder, arch, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.VALID, arch, joint_embedder, None, dataloader, loss_fn, None, config, experiment, epoch)
 
 
-def test_loop(joint_embedder, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.TEST, joint_embedder, None, dataloader, loss_fn, None, config, experiment, epoch)
+def test_loop(joint_embedder, arch, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.TEST, arch, joint_embedder, None, dataloader, loss_fn, None, config, experiment, epoch)
 
 
 def go_train(rank, world_size, experiment_name, port, train_data=None, valid_data=None):
@@ -195,24 +202,17 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
         with open(const.DATA_WORKING_VALID_PATH, 'rb') as valid_file:
             valid_data = pickle.load(valid_file)
 
-    input_lang = train_data.input_lang
-    output_lang = train_data.output_lang
-    input_lang_size = train_data.input_lang.n_words
-    output_lang_size = train_data.output_lang.n_words
-
     train_sampler = None
     valid_sampler = None
 
     scaler = None
 
     experiment = Experiment(experiment_name)
-    experiment.log_initial_metrics(world_size, len(train_data), len(valid_data), input_lang_size, output_lang_size)
+    experiment.log_initial_metrics(world_size, len(train_data), len(valid_data),
+                                   train_data.input_lang.n_words, train_data.output_lang.n_words)
 
-    encoder_doc = model.EncoderRNN(input_lang_size, const.HIDDEN_SIZE, const.BATCH_SIZE, input_lang)
-    encoder_code = model.EncoderRNN(output_lang_size, const.HIDDEN_SIZE, const.BATCH_SIZE, output_lang)
-    decoder_doc = model.DecoderRNNWrapped(const.HIDDEN_SIZE, input_lang_size, const.BATCH_SIZE, input_lang)
-    decoder_code = model.DecoderRNNWrapped(const.HIDDEN_SIZE, output_lang_size, const.BATCH_SIZE, output_lang)
-    joint_embedder = model.JointEmbeder([encoder_doc, encoder_code], [decoder_doc, decoder_code])
+    arch = model.Architecture(model.Architecture.Mode.NORMAL)
+    joint_embedder = model.JointEmbedder(arch, train_data.input_lang.n_words, train_data.output_lang.n_words)
 
     if ddp.is_dist_avail_and_initialized():
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=const.SHUFFLE_DATA)
@@ -255,8 +255,8 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
                 train_sampler.set_epoch(epoch)
                 valid_sampler.set_epoch(epoch)
 
-            train_loop(joint_embedder, optimizer, dataloader, loss_fn, scaler, config, experiment, epoch=epoch)
-            valid_loss, valid_accuracy = valid_loop(joint_embedder, valid_dataloader, loss_fn, config, experiment,
+            train_loop(joint_embedder, arch, optimizer, dataloader, loss_fn, scaler, config, experiment, epoch=epoch)
+            valid_loss, valid_accuracy = valid_loop(joint_embedder, arch, valid_dataloader, loss_fn, config, experiment,
                                                     epoch=epoch)
 
             experiment.log_learning_rate(optimizer.param_groups[0]['lr'], epoch=epoch)
@@ -311,17 +311,17 @@ def run(args):
 
         if const.LABELS_ONLY or const.TARGETS_ONLY:
             if const.LABELS_ONLY:
-                train_data.df['code_tokens'] = train_data.df['docstring_tokens']
-                test_data.df['code_tokens'] = test_data.df['docstring_tokens']
-                valid_data.df['code_tokens'] = valid_data.df['docstring_tokens']
+                train_data.df['code_sequence'] = train_data.df.loc[:, 'docstring_tokens'].copy()
+                test_data.df['code_sequence'] = test_data.df.loc[:, 'docstring_tokens'].copy()
+                valid_data.df['code_sequence'] = valid_data.df.loc[:, 'docstring_tokens'].copy()
 
                 train_data.output_lang = train_data.input_lang
                 test_data.output_lang = test_data.input_lang
                 valid_data.output_lang = valid_data.input_lang
             if const.TARGETS_ONLY:
-                train_data.df['docstring_tokens'] = train_data.df['code_tokens']
-                test_data.df['docstring_tokens'] = test_data.df['code_tokens']
-                valid_data.df['docstring_tokens'] = valid_data.df['code_tokens']
+                train_data.df['docstring_tokens'] = train_data.df.loc[:, 'code_sequence'].copy()
+                test_data.df['docstring_tokens'] = test_data.df.loc[:,  'code_sequence'].copy()
+                valid_data.df['docstring_tokens'] = valid_data.df.loc[:, 'code_sequence'].copy()
 
                 train_data.input_lang = train_data.output_lang
                 test_data.input_lang = test_data.output_lang
@@ -332,9 +332,9 @@ def run(args):
                 test_data.sort()
                 valid_data.sort()
 
-            train_data.to_numpy()
-            test_data.to_numpy()
-            valid_data.to_numpy()
+            train_data.to_list()
+            test_data.to_list()
+            valid_data.to_list()
     elif not args.last_data:
         input_lang = data.Lang('docstring')
         output_lang = data.Lang('code')

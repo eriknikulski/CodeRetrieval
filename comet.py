@@ -31,7 +31,8 @@ class Experiment:
     def end(self):
         self.experiment.end()
 
-    def log_initial_metrics(self, world_size, train_data_size, valid_data_size, input_lang_n_words, output_lang_n_words):
+    def log_initial_metrics(self, world_size, train_data_size, valid_data_size, input_lang_n_words,
+                            output_lang_n_words):
         if ddp.is_main_process():
             self.experiment.log_parameters(const.get_hyperparams({
                 'setup   world_size': world_size,
@@ -63,7 +64,8 @@ class Experiment:
 
 def generate_text_seq(input_lang, output_lang, inputs, results, step):
     inputs = [' '.join(input_lang.seq_from_tensor(el.flatten())) for el in inputs]
-    results = [[' '.join(output_lang.seq_from_tensor(el.flatten())) for el in res] for res in results]
+    langs = [input_lang, output_lang]
+    results = [[' '.join(langs[i].seq_from_tensor(el.flatten())) for el in res] for i, res in enumerate(results)]
     return str(step) + '\n' + '\n\n'.join(
         str(input) + '\n  ====>  \n' + str(result) for input, result in zip(inputs, zip(*results)))
         

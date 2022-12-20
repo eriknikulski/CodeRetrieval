@@ -89,7 +89,7 @@ PIN_MEMORY = True
 MIN_CHECKPOINT_EPOCH = 500
 MIN_CHECKPOINT_EPOCH_DIST = 100
 LOG_BATCHES = True
-LOG_IN_TRAINING = False
+LOG_IN_TRAINING = True
 FP16 = True
 ALLOW_TF32 = True
 SET_GRADIENTS_NONE = True
@@ -107,6 +107,7 @@ BIDIRECTIONAL = 2
 LSTM_ENCODER_DROPOUT = 0.3
 LSTM_DECODER_DROPOUT = 0.3
 HIDDEN_SIZE = 256
+DROPOUT = 0.25
 
 LEARNING_RATE = 0.01
 MOMENTUM = 0.9
@@ -159,6 +160,7 @@ def get_hyperparams(params=None):
         'model   lstm_encoder_dropout': LSTM_ENCODER_DROPOUT,
         'model   lstm_decoder_dropout': LSTM_DECODER_DROPOUT,
         'model   hidden_size': HIDDEN_SIZE,
+        'model   dropout': DROPOUT,
 
         'training   learning_rate': LEARNING_RATE,
         'training   momentum': MOMENTUM,
