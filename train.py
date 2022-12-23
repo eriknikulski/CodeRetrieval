@@ -119,8 +119,8 @@ def go(mode: Mode, arch: model.Architecture, joint_embedder, optimizer, dataload
     size = len(dataloader.dataset) / world_size
     num_batches = int(size / config['batch_size'])
     
-    epoch_loss = 0
-    epoch_accuracies = torch.zeros(arch.n_decoders)
+    epoch_loss = torch.zeros(1, device=config['device'])
+    epoch_accuracies = torch.zeros(arch.n_decoders, device=config['device'])
     doc_seqs = []
     outputs_seqs = None
     
