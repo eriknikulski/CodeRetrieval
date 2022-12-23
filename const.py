@@ -126,6 +126,7 @@ GRADIENT_CLIPPING_VALUE = 5.0
 def get_hyperparams(params=None):
     params = {} if not params else params
     return {
+        'slurm_job_id': SLURM_JOB_ID,
         'profiler   is_active': PROFILER_IS_ACTIVE,
         'profiler   wait': PROFILER_WAIT,
         'profiler   warmup': PROFILER_WARMUP,
