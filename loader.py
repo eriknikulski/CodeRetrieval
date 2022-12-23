@@ -165,9 +165,9 @@ class CodeDataset(Dataset):
         doc_idx = self.working_items.index('docstring_tokens')
         code_idx = self.working_items.index('code_sequence')
 
-        return [elems for elems in self.df if
-                min_tokens_docstring <= len(elems[doc_idx]) <= max_tokens_docstring and
-                min_tokens_code <= len(elems[code_idx]) <= max_tokens_code]
+        self.df = [elems for elems in self.df if
+                   min_tokens_docstring <= len(elems[doc_idx]) <= max_tokens_docstring and
+                   min_tokens_code <= len(elems[code_idx]) <= max_tokens_code]
 
     def sort(self):
         self.df.sort_values(by=['code_sequence', 'docstring_tokens'], key=lambda x: x.apply(len), inplace=True)
