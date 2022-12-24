@@ -46,21 +46,18 @@ class Experiment:
     def log_learning_rate(self, lr, epoch):
         if ddp.is_main_process():
             self.experiment.log_metric(f'learning_rate', lr, epoch=epoch)
-    
-    def log_batch_metrics(self, mode, loss, accuracies, grad_norms, step):
-        if ddp.is_main_process():
-            self.experiment.log_metric(f'{mode}_loss', loss, step=step)
-            for i, accuracy in enumerate(accuracies):
-                self.experiment.log_metric(f'{mode}_{i}_accuracy', accuracy, step=step)
-            for i, grad_norm in enumerate(grad_norms):
-                self.experiment.log_metric(f'{i}_grad_norm', grad_norm, step=step)
 
-    def log_epoch_metrics(self, mode, loss, accuracies, translations, epoch):
+    def log_metrics(self, mode, loss, accuracies=None, grad_norms=None, text=None, step=None, epoch=None):
         if ddp.is_main_process():
-            self.experiment.log_metric(f'{mode}_loss', loss, epoch=epoch)
-            for i, accuracy in enumerate(accuracies):
-                self.experiment.log_metric(f'{mode}_{i}_accuracy', accuracy, epoch=epoch)
-            self.experiment.log_text(translations)
+            self.experiment.log_metric(f'{mode}_loss', loss, step=step, epoch=epoch)
+            if accuracies is not None:
+                for i, accuracy in enumerate(accuracies):
+                    self.experiment.log_metric(f'{mode}_{i}_accuracy', accuracy, step=step, epoch=epoch)
+            if grad_norms is not None:
+                for i, grad_norm in enumerate(grad_norms):
+                    self.experiment.log_metric(f'{i}_grad_norm', grad_norm, step=step, epoch=epoch)
+            if text:
+                self.experiment.log_text(text, step=epoch)
 
 
 def generate_text_seq(input_lang, output_langs, inputs, results, step):
