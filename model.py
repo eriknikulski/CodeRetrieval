@@ -73,11 +73,8 @@ class Architecture:
             return doc_elem
         return code_elem
 
-    def get_encoder_input(self, encoder_id, doc_seqs, doc_seq_lengths, code_seqs, code_seq_lengths, methode_names,
-                          methode_name_lengths, code_tokens):
-        return self.get_encoder_elements(encoder_id, (doc_seqs, doc_seq_lengths),
-                                         (code_seqs, code_seq_lengths, methode_names,
-                                          methode_name_lengths, code_tokens))
+    def get_encoder_input(self, encoder_id, doc_inputs, code_inputs):
+        return self.get_encoder_elements(encoder_id, doc_inputs, code_inputs)
 
     def get_encoder_lang(self, encoder_id, doc_lang, code_lang):
         return self.get_encoder_elements(encoder_id, doc_lang, code_lang)
