@@ -31,11 +31,12 @@ class Experiment:
     def end(self):
         self.experiment.end()
 
-    def log_initial_metrics(self, world_size, train_data_size, valid_data_size, input_lang_n_words,
-                            output_lang_n_words):
+    def log_initial_params(self, world_size, arch, train_data_size, valid_data_size, input_lang_n_words,
+                           output_lang_n_words):
         if ddp.is_main_process():
             self.experiment.log_parameters(const.get_hyperparams({
                 'setup   world_size': world_size,
+                'setup   architecture': arch,
                 'data   train_data_size': train_data_size,
                 'data   valid_data_size': valid_data_size,
                 'data   input_lang_n_words': input_lang_n_words,

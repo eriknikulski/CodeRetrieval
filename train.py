@@ -207,12 +207,12 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
 
     scaler = None
 
-    experiment = Experiment(experiment_name)
-    experiment.log_initial_metrics(world_size, len(train_data), len(valid_data),
-                                   train_data.input_lang.n_words, train_data.output_lang.n_words)
-
-    arch = model.Architecture(model.Architecture.Mode.NORMAL)
+    arch = model.Architecture(model.Architecture.Mode.CODE_CODE)
     joint_embedder = model.JointEmbedder(arch, train_data.input_lang.n_words, train_data.output_lang.n_words)
+
+    experiment = Experiment(experiment_name)
+    experiment.log_initial_params(world_size, arch, len(train_data), len(valid_data),
+                                  train_data.input_lang.n_words, train_data.output_lang.n_words)
 
     if ddp.is_dist_avail_and_initialized():
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=const.SHUFFLE_DATA)
