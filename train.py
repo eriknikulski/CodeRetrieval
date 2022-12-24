@@ -309,32 +309,10 @@ def run(args):
             valid_data = pickle.load(valid_file)
             valid_data.enforce_length_constraints()
 
-        if const.LABELS_ONLY or const.TARGETS_ONLY:
-            if const.LABELS_ONLY:
-                train_data.df['code_sequence'] = train_data.df.loc[:, 'docstring_tokens'].copy()
-                test_data.df['code_sequence'] = test_data.df.loc[:, 'docstring_tokens'].copy()
-                valid_data.df['code_sequence'] = valid_data.df.loc[:, 'docstring_tokens'].copy()
-
-                train_data.output_lang = train_data.input_lang
-                test_data.output_lang = test_data.input_lang
-                valid_data.output_lang = valid_data.input_lang
-            if const.TARGETS_ONLY:
-                train_data.df['docstring_tokens'] = train_data.df.loc[:, 'code_sequence'].copy()
-                test_data.df['docstring_tokens'] = test_data.df.loc[:,  'code_sequence'].copy()
-                valid_data.df['docstring_tokens'] = valid_data.df.loc[:, 'code_sequence'].copy()
-
-                train_data.input_lang = train_data.output_lang
-                test_data.input_lang = test_data.output_lang
-                valid_data.input_lang = valid_data.output_lang
-
-            if not const.SHUFFLE_DATA:
-                train_data.sort()
-                test_data.sort()
-                valid_data.sort()
-
-            train_data.to_list()
-            test_data.to_list()
-            valid_data.to_list()
+        if not const.SHUFFLE_DATA:
+            train_data.sort()
+            test_data.sort()
+            valid_data.sort()
     elif not args.last_data:
         input_lang = data.Lang('doc')
         output_lang = data.Lang('code')
