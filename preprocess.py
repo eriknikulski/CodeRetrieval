@@ -81,11 +81,11 @@ def run(args):
             valid_data.df[['code_sequence']] = valid_data.df[['code_sequence']].applymap(bpe.segment_tokens)
 
     print('Building languages...')
-    input_lang = data.Lang('docstring')
-    output_lang = data.Lang('code')
-    train_data.build_language(languages=[input_lang, output_lang])
-    test_data.build_language(languages=[input_lang, output_lang])
-    valid_data.build_language(languages=[input_lang, output_lang])
+    doc_lang = data.Lang('doc')
+    code_lang = data.Lang('code')
+    train_data.build_language(languages=[doc_lang, code_lang])
+    test_data.build_language(languages=[doc_lang, code_lang])
+    valid_data.build_language(languages=[doc_lang, code_lang])
 
     print('Converting to tensors...')
     train_data.to_tensors()
@@ -101,8 +101,8 @@ def run(args):
     pickle.dump(train_data, open(const.DATA_TRAIN_PATH, 'wb'))
     pickle.dump(test_data, open(const.DATA_TEST_PATH, 'wb'))
     pickle.dump(valid_data, open(const.DATA_VALID_PATH, 'wb'))
-    pickle.dump(input_lang, open(const.DATA_INPUT_LANG_PATH, 'wb'))
-    pickle.dump(output_lang, open(const.DATA_OUTPUT_LANG_PATH, 'wb'))
+    pickle.dump(doc_lang, open(const.DATA_INPUT_LANG_PATH, 'wb'))
+    pickle.dump(code_lang, open(const.DATA_OUTPUT_LANG_PATH, 'wb'))
 
 
 if __name__ == '__main__':
