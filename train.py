@@ -281,16 +281,9 @@ def run(args):
 
     assert not (args.labels_only and args.targets_only)
 
-    if args.labels_only:
-        const.LABELS_ONLY = True
-
-    if args.targets_only:
-        const.TARGETS_ONLY = True
-
-    if args.keep_duplicates:
-        remove_duplicates = False
-    else:
-        remove_duplicates = True
+    const.LABELS_ONLY = args.labels_only
+    const.TARGETS_ONLY = args.targets_only
+    remove_duplicates = not args.keep_duplicates
 
     const.CUDA_DEVICE_COUNT = torch.cuda.device_count()
     if args.gpu and const.CUDA_DEVICE_COUNT < 1:

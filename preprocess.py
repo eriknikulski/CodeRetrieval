@@ -20,13 +20,8 @@ def run(args):
     else:
         data_path = const.SYNTH_PATH
 
-    if args.labels_only:
-        const.LABELS_ONLY = True
-
-    if args.keep_duplicates:
-        remove_duplicates = False
-    else:
-        remove_duplicates = True
+    const.LABELS_ONLY = args.labels_only
+    remove_duplicates = not args.keep_duplicates
 
     train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', labels_only=const.LABELS_ONLY,
                                     build_language=False, remove_duplicates=remove_duplicates, to_tensors=False,
