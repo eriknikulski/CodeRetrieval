@@ -44,25 +44,19 @@ class CodeDataset(Dataset):
     def __init__(self, path, transform=data.normalize_docstring, target_transform=data.transform_code_sequence,
                  get_methode_name=data.get_code_methode_name, get_code_tokens=data.get_code_tokens,
                  min_tokens_docstring=const.MIN_LENGTH_DOCSTRING, max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
-                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE, labels_only=False,
+                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE,
                  languages=None, build_language=True, to_tensors=True, remove_duplicates=True, sort=False):
         self.path = path
         self.doc_lang = None
         self.code_lang = None
         if languages:
             self.set_languages(languages)
-        self.labels_only = labels_only
         self.working_items = ['docstring_tokens', 'docstring_tokens_length', 'code_sequence', 'code_sequence_length',
                               'methode_name', 'methode_name_length', 'code_tokens']
 
         self.df = read_folder(RichPath.create(path))
         self.df.loc[:, 'docstring_tokens'] = self.df.loc[:, 'docstring_tokens'].copy().map(transform)
-        if labels_only:
-            self.df.loc[:, 'code_sequence'] = self.df.loc[:, 'docstring_tokens'].copy()
-            min_tokens_code = min_tokens_docstring
-            max_tokens_code = max_tokens_docstring
-        else:
-            self.df.loc[:, 'code_sequence'] = self.df.loc[:, 'code'].copy().map(target_transform)
+        self.df.loc[:, 'code_sequence'] = self.df.loc[:, 'code'].copy().map(target_transform)
 
         self.df.loc[:, 'docstring_tokens_length'] = self.df.loc[:, 'docstring_tokens'].copy().map(len)
         self.df.loc[:, 'code_sequence_length'] = self.df.loc[:, 'code_sequence'].copy().map(len)

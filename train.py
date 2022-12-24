@@ -28,8 +28,6 @@ import profiler
 
 parser = argparse.ArgumentParser(description='ML model for sequence to sequence translation')
 parser.add_argument('-d', '--data', choices=['java', 'synth'], help='The data to be used.')
-parser.add_argument('-lo', '--labels-only', action='store_true', default=False, help='Train label to label.')
-parser.add_argument('-to', '--targets-only', action='store_true', default=False, help='Train target to target')
 parser.add_argument('-ld', '--load-data', action='store_true', default=False, help='Load preprocessed data.')
 parser.add_argument('-kd', '--keep-duplicates', action='store_true', default=False,
                     help='Do not remove duplicates in data.')
@@ -285,10 +283,6 @@ def run(args):
     else:
         data_path = const.SYNTH_PATH
 
-    assert not (args.labels_only and args.targets_only)
-
-    const.LABELS_ONLY = args.labels_only
-    const.TARGETS_ONLY = args.targets_only
     remove_duplicates = not args.keep_duplicates
     arch_mode = model.Architecture.Mode(args.architecture)
 
@@ -316,14 +310,11 @@ def run(args):
     elif not args.last_data:
         input_lang = data.Lang('doc')
         output_lang = data.Lang('code')
-        train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/',
-                                        labels_only=const.LABELS_ONLY, languages=[input_lang, output_lang],
+        train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', languages=[input_lang, output_lang],
                                         remove_duplicates=remove_duplicates)
-        test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/',
-                                       labels_only=const.LABELS_ONLY, languages=[input_lang, output_lang],
+        test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/', languages=[input_lang, output_lang],
                                        remove_duplicates=remove_duplicates)
-        valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/',
-                                        labels_only=const.LABELS_ONLY, languages=[input_lang, output_lang],
+        valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/', languages=[input_lang, output_lang],
                                         remove_duplicates=remove_duplicates)
 
     if not args.last_data:
