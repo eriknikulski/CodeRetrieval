@@ -63,10 +63,9 @@ class Experiment:
             self.experiment.log_text(translations)
 
 
-def generate_text_seq(input_lang, output_lang, inputs, results, step):
+def generate_text_seq(input_lang, output_langs, inputs, results, step):
     inputs = [' '.join(input_lang.seq_from_tensor(el.flatten())) for el in inputs]
-    langs = [input_lang, output_lang]
-    results = [[' '.join(langs[i].seq_from_tensor(el.flatten())) for el in res] for i, res in enumerate(results)]
+    results = [[' '.join(output_langs[i].seq_from_tensor(el.flatten())) for el in res] for i, res in enumerate(results)]
     return str(step) + '\n' + '\n\n'.join(
         str(input) + '\n  ====>  \n' + str(result) for input, result in zip(inputs, zip(*results)))
         

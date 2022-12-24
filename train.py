@@ -112,8 +112,8 @@ def criterion(loss_fn, outputs, targets):
 def go(mode: Mode, arch: model.Architecture, joint_embedder, optimizer, dataloader, loss_fn, scaler, config,
        experiment=None, epoch=0):
     joint_module = getattr(joint_embedder, 'module', joint_embedder)      # get module if wrapped in DDP
-    input_lang = dataloader.dataset.input_lang
-    output_lang = dataloader.dataset.output_lang
+    doc_lang = dataloader.dataset.input_lang
+    code_lang = dataloader.dataset.output_lang
 
     world_size = dist.get_world_size() if dist.is_initialized() else 1
     size = len(dataloader.dataset) / world_size
@@ -121,8 +121,9 @@ def go(mode: Mode, arch: model.Architecture, joint_embedder, optimizer, dataload
     
     epoch_loss = torch.zeros(1, device=config['device'])
     epoch_accuracies = torch.zeros(arch.n_decoders, device=config['device'])
-    doc_seqs = []
     outputs_seqs = None
+    encoder_id = None
+    encoder_inputs = None
     
     if mode == Mode.TRAIN:
         joint_embedder.train()
@@ -172,7 +173,9 @@ def go(mode: Mode, arch: model.Architecture, joint_embedder, optimizer, dataload
 
         if experiment:
             outputs_seqs = [out[:5] for out in outputs_seqs]
-            translations = comet.generate_text_seq(input_lang, output_lang, doc_seqs[:5], outputs_seqs, epoch)
+            input_lang = arch.get_encoder_lang(encoder_id, doc_lang, code_lang)
+            output_langs = arch.get_decoder_languages(doc_lang, code_lang)
+            translations = comet.generate_text_seq(input_lang, output_langs, encoder_inputs[0][:5], outputs_seqs, epoch)
             experiment.log_epoch_metrics(mode.value, epoch_loss, epoch_accuracies, translations, epoch=epoch)
 
     torch.set_grad_enabled(True)

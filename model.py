@@ -15,11 +15,11 @@ class Architecture:
         CODE = 1
 
     class Mode(Enum):
-        NORMAL = 0
-        DOC_DOC = 1
-        CODE_CODE = 2
-        DOC_CODE = 3
-        CODE_DOC = 4
+        NORMAL = 'normal'
+        DOC_DOC = 'doc_doc'
+        CODE_CODE = 'code_code'
+        DOC_CODE = 'doc_code'
+        CODE_DOC = 'code_doc'
 
     def __init__(self, arch: Mode = Mode.NORMAL):
         assert isinstance(arch, Architecture.Mode)
@@ -68,20 +68,33 @@ class Architecture:
             return 0
         return random.randint(0, 1)
 
+    def get_encoder_elements(self, encoder_id, doc_elem, code_elem):
+        if self.encoders[encoder_id] == Architecture.Type.DOC:
+            return doc_elem
+        return code_elem
+
     def get_encoder_input(self, encoder_id, doc_seqs, doc_seq_lengths, code_seqs, code_seq_lengths, methode_names,
                           methode_name_lengths, code_tokens):
-        if self.encoders[encoder_id] == Architecture.Type.DOC:
-            return doc_seqs, doc_seq_lengths
-        else:
-            return code_seqs, code_seq_lengths, methode_names, methode_name_lengths, code_tokens
+        return self.get_encoder_elements(encoder_id, (doc_seqs, doc_seq_lengths),
+                                         (code_seqs, code_seq_lengths, methode_names,
+                                          methode_name_lengths, code_tokens))
+
+    def get_encoder_lang(self, encoder_id, doc_lang, code_lang):
+        return self.get_encoder_elements(encoder_id, doc_lang, code_lang)
+
+    def get_decoder_elements(self, doc_elem, code_elem):
+        out = []
+        if Architecture.Type.DOC in self.decoders:
+            out.append(doc_elem)
+        if Architecture.Type.CODE in self.decoders:
+            out.append(code_elem)
+        return out
 
     def get_decoder_sizes(self, doc_size, code_size):
-        decoder_sizes = []
-        if Architecture.Type.DOC in self.decoders:
-            decoder_sizes.append(doc_size)
-        if Architecture.Type.CODE in self.decoders:
-            decoder_sizes.append(code_size)
-        return decoder_sizes
+        return self.get_decoder_elements(doc_size, code_size)
+
+    def get_decoder_languages(self, doc_lang, code_lang):
+        return self.get_decoder_elements(doc_lang, code_lang)
 
 
 class EncoderRNN(nn.Module):
