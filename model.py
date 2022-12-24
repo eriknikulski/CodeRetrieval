@@ -195,7 +195,6 @@ class DecoderRNNWrapped(nn.Module):
                                       self.decoder.hidden_size, device=self.decoder.device))
 
         decoder_outputs = []
-        output_seqs = []
 
         for di in range(target_length):
             decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden)
@@ -203,9 +202,7 @@ class DecoderRNNWrapped(nn.Module):
             decoder_input = topi.squeeze(dim=1).detach()  # detach from history as input
 
             decoder_outputs.append(decoder_output)
-            output_seqs.append(topi.detach())
-
-        return torch.cat(decoder_outputs, dim=1), torch.cat(output_seqs, dim=1).squeeze()
+        return torch.cat(decoder_outputs, dim=1), decoder_hidden
 
     def set_batch_size(self, batch_size):
         self.decoder.set_batch_size(batch_size)
@@ -310,7 +307,8 @@ class JointTranslator(nn.Module):
         decoder_outputs, output_seqs = [], []
 
         for i, decoder in enumerate(self.decoders):
-            _decoder_outputs, _output_seqs = decoder(encoder_hidden[0], decoder_lengths[i])
+            _decoder_outputs, _ = decoder(encoder_hidden[0], decoder_lengths[i])
+            _output_seqs = _decoder_outputs.topk(1)[1].squeeze()
             decoder_outputs.append(_decoder_outputs)
             output_seqs.append(_output_seqs)
 
