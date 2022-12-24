@@ -31,9 +31,12 @@ parser.add_argument('-d', '--data', choices=['java', 'synth'], help='The data to
 parser.add_argument('-lo', '--labels-only', action='store_true', default=False, help='Train label to label.')
 parser.add_argument('-to', '--targets-only', action='store_true', default=False, help='Train target to target')
 parser.add_argument('-ld', '--load-data', action='store_true', default=False, help='Load preprocessed data.')
-parser.add_argument('-kd', '--keep-duplicates', action='store_true', default=False, help='Do not remove duplicates in data.')
+parser.add_argument('-kd', '--keep-duplicates', action='store_true', default=False,
+                    help='Do not remove duplicates in data.')
 parser.add_argument('-g', '--gpu', action='store_true', default=False, help='Run on GPU(s).')
 parser.add_argument('-lad', '--last-data', action='store_true', default=False, help='Use last working dataset.')
+parser.add_argument('-arch', '--architecture', choices=['normal', 'doc_doc', 'code_code', 'doc_code', 'code_doc'],
+                    default='normal', help='The model architecture to be used for training.')
 
 
 class Mode(Enum):
@@ -194,7 +197,7 @@ def test_loop(joint_embedder, arch, dataloader, loss_fn, config, experiment=None
     return go(Mode.TEST, arch, joint_embedder, None, dataloader, loss_fn, None, config, experiment, epoch)
 
 
-def go_train(rank, world_size, experiment_name, port, train_data=None, valid_data=None):
+def go_train(rank, world_size, arch_mode, experiment_name, port, train_data=None, valid_data=None):
     if rank is not None:
         ddp.setup(rank, world_size, port)
 
@@ -210,7 +213,7 @@ def go_train(rank, world_size, experiment_name, port, train_data=None, valid_dat
 
     scaler = None
 
-    arch = model.Architecture(model.Architecture.Mode.CODE_CODE)
+    arch = model.Architecture(arch_mode)
     joint_embedder = model.JointEmbedder(arch, train_data.input_lang.n_words, train_data.output_lang.n_words)
 
     experiment = Experiment(experiment_name)
@@ -287,6 +290,7 @@ def run(args):
     const.LABELS_ONLY = args.labels_only
     const.TARGETS_ONLY = args.targets_only
     remove_duplicates = not args.keep_duplicates
+    arch_mode = model.Architecture.Mode(args.architecture)
 
     const.CUDA_DEVICE_COUNT = torch.cuda.device_count()
     if args.gpu and const.CUDA_DEVICE_COUNT < 1:
@@ -354,12 +358,12 @@ def run(args):
 
     print(f'CUDA_DEVICE_COUNT: {const.CUDA_DEVICE_COUNT}')
     if args.gpu:
-        ddp.run(go_train, const.CUDA_DEVICE_COUNT, experiment_name, port)
+        ddp.run(go_train, const.CUDA_DEVICE_COUNT, arch_mode, experiment_name, port)
     else:
         if not args.last_data:
-            go_train(None, 1, experiment_name, port, train_data, valid_data)
+            go_train(None, 1, arch_mode, experiment_name, port, train_data, valid_data)
         else:
-            go_train(None, 1, experiment_name, port)
+            go_train(None, 1, arch_mode, experiment_name, port)
 
 
 if __name__ == '__main__':

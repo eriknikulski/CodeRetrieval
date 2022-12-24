@@ -36,8 +36,8 @@ def cleanup():
     dist.destroy_process_group()
 
 
-def run(fn, world_size, experiment_name, port):
-    mp.spawn(fn, args=(world_size, experiment_name, port,),
+def run(fn, world_size, arch_mode, experiment_name, port):
+    mp.spawn(fn, args=(world_size, arch_mode, experiment_name, port,),
              nprocs=world_size, join=True)
 
 
