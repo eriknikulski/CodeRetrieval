@@ -317,3 +317,39 @@ class JointTranslator(nn.Module):
             output_seqs.append(_output_seqs)
 
         return decoder_outputs, output_seqs
+
+
+class JointEmbedder(nn.Module):
+    def __init__(self, doc_lang_size, code_lang_size, hidden_size=const.HIDDEN_SIZE, batch_size=const.BATCH_SIZE):
+        super(JointEmbedder, self).__init__()
+
+        self.enc_strs = []
+        self.dec_strs = []
+        self.doc_lang_size = doc_lang_size
+        self.code_lang_size = code_lang_size
+        self.hidden_size = hidden_size
+        self.batch_size = batch_size
+
+        self.doc_encoder = DocEncoder(self.doc_lang_size, self.hidden_size, self.batch_size)
+        self.code_encoder = CodeEncoder(self.code_lang_size, self.hidden_size, self.batch_size)
+
+    def forward(self, doc_inputs, code_inputs, neg_doc_inputs, neg_code_inputs):
+        _, (doc_hidden, _) = self.doc_encoder(*doc_inputs)
+        _, (code_hidden, _) = self.code_encoder(*code_inputs)
+
+        _, (neg_doc_hidden, _) = self.doc_encoder(*neg_doc_inputs)
+        _, (neg_code_hidden, _) = self.code_encoder(*neg_code_inputs)
+
+        # TODO: richtige variations?? In paper nur 0, 1
+        # TODO: in deep_code_search margin = 0.05 ???
+        variations = [
+            (doc_hidden, code_hidden, torch.tensor(1)),
+            (neg_doc_hidden, code_hidden, torch.tensor(-1)),
+            # (doc_hidden, neg_code_hidden, torch.tensor(-1)),
+        ]
+
+        # TODO: reduction in paper ist sum ?? -> bei 2 * -1  --> macht sum sinn?
+        margin = 0.05
+        return (margin - sum(var[2] * F.cosine_similarity(var[0], var[1]) for var in variations)).clamp(min=1e-6).mean()
+        # TODO: use cosine embedding??
+        # return sum(F.cosine_embedding_loss(*var) for var in variations)
