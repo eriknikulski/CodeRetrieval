@@ -173,7 +173,11 @@ class CodeDataset(Dataset):
                    min_tokens_code <= len(elems[code_idx]) <= max_tokens_code]
 
     def sort(self):
-        self.df.sort_values(by=['code_sequence', 'docstring_tokens'], key=lambda x: x.apply(len), inplace=True)
+        if isinstance(self.df, pd.DataFrame):
+            self.df.sort_values(by=['code_sequence', 'docstring_tokens'], key=lambda x: x.apply(len), inplace=True)
+        else:
+            code_idx = self.working_items.index('code_sequence')
+            self.df.sort(key=lambda x: len(x[code_idx]))
 
 
 if __name__ == "__main__":
