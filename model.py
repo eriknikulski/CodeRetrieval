@@ -219,10 +219,9 @@ class EncoderBOW(nn.Module):
 
     def forward(self, input):
         length = input.size(1)
-        max_pool = nn.MaxPool1d(kernel_size=length, stride=length)
         embedded = self.embedding(input)
         out = F.dropout(embedded, self.dropout, self.training)
-        out = max_pool(out.transpose(1, 2)).squeeze(2)
+        out = F.max_pool1d(out.transpose(1, 2), kernel_size=length, stride=length).squeeze(2)
         return out
 
 
