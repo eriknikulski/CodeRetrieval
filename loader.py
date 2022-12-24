@@ -44,8 +44,8 @@ class CodeDataset(Dataset):
     def __init__(self, path, transform=data.normalize_docstring, target_transform=data.transform_code_sequence,
                  get_methode_name=data.get_code_methode_name, get_code_tokens=data.get_code_tokens,
                  min_tokens_docstring=const.MIN_LENGTH_DOCSTRING, max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
-                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE,
-                 languages=None, build_language=True, to_tensors=True, remove_duplicates=True, sort=False):
+                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE, languages=None,
+                 build_language=True, to_tensors=True, remove_duplicates=True, sort=False, create_negatives=True):
         self.path = path
         self.doc_lang = None
         self.code_lang = None
@@ -70,6 +70,11 @@ class CodeDataset(Dataset):
         if remove_duplicates:
             self.remove_duplicates()
 
+        self.df.reset_index(drop=True, inplace=True)
+
+        if create_negatives:
+            self.create_negatives()
+
         if build_language:
             self.build_language()
 
@@ -90,7 +95,7 @@ class CodeDataset(Dataset):
         :return: doc, doc_length, code_sequence, code_sequence_length, methode_name, methode_name_length,
                  code_tokens, url
         """
-        return self.df[idx]
+        return self.df[idx][:2], self.df[idx][2:6], self.df[idx][6:8], self.df[idx][8:]
 
     def get_langs(self):
         return self.doc_lang, self.code_lang
@@ -98,6 +103,20 @@ class CodeDataset(Dataset):
     def remove_duplicates(self):
         self.df = remove_duplicate_code_df(self.df)
         self.df.drop('doc_id', axis=1, inplace=True)
+
+    def create_negatives(self):
+        self.working_items += ['neg_' + item for item in self.working_items]
+
+        self.df.loc[:, 'neg_docstring_tokens'] = self.df.loc[:, 'docstring_tokens'].copy().sample(frac=1)\
+            .reset_index(drop=True)
+        self.df.loc[:, 'neg_docstring_tokens_length'] = self.df.loc[:, 'neg_docstring_tokens'].copy().map(len)
+
+        self.df.loc[:, 'neg_code_sequence'] = self.df.loc[:, 'code_sequence'].copy().sample(frac=1)\
+            .reset_index(drop=True)
+        self.df.loc[:, 'neg_code_sequence_length'] = self.df.loc[:, 'neg_code_sequence'].copy().map(len)
+        self.df.loc[:, 'neg_methode_name'] = self.df.loc[:, 'methode_name'].copy().sample(frac=1).reset_index(drop=True)
+        self.df.loc[:, 'neg_methode_name_length'] = self.df.loc[:, 'neg_methode_name'].copy().map(len)
+        self.df.loc[:, 'neg_code_tokens'] = self.df.loc[:, 'code_tokens'].copy().sample(frac=1).reset_index(drop=True)
 
     def build_language(self, languages=None):
         print('building language dictionaries')
@@ -120,8 +139,7 @@ class CodeDataset(Dataset):
     def to_tensors(self):
         assert self.doc_lang and self.code_lang
         print('converting sequences to tensors')
-        self.df.loc[:, 'docstring_tokens'] = self.df.loc[:, 'docstring_tokens'].map(
-            self.doc_lang.tensor_from_sequence)
+        self.df.loc[:, 'docstring_tokens'] = self.df.loc[:, 'docstring_tokens'].map(self.doc_lang.tensor_from_sequence)
         self.df.loc[:, 'code_sequence'] = self.df.loc[:, 'code_sequence'].map(self.code_lang.tensor_from_sequence)
         self.df.loc[:, 'code_tokens'] = self.df.loc[:, 'code_tokens'].map(self.code_lang.tensor_from_sequence)
         self.df.loc[:, 'methode_name'] = self.df.loc[:, 'methode_name'].map(self.code_lang.tensor_from_sequence)
