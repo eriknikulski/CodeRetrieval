@@ -8,6 +8,13 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 import const
 
+# TODO: set padding_token, max_norm in nn.Embedding
+
+
+class ModelType(Enum):
+    TRANSLATOR = 0
+    EMBEDDER = 1
+
 
 class Architecture:
     class Type(Enum):
