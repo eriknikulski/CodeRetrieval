@@ -23,10 +23,10 @@ def is_ready_to_save(loss, epoch):
     return False
 
 
-def checkpoint_encoders_decoders(epoch, joint_embedder, loss, base_path):
+def checkpoint_encoders_decoders(epoch, joint_translator, loss, base_path):
     if ddp.is_main_process():
         if is_ready_to_save(loss, epoch):
-            joint_module = getattr(joint_embedder, 'module', joint_embedder)
+            joint_module = getattr(joint_translator, 'module', joint_translator)
             for i, encoder in enumerate(joint_module.encoders):
                 torch.save({
                     'epoch': epoch,

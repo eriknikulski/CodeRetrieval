@@ -285,10 +285,10 @@ class CodeDecoder(nn.Module):
         return self.decoder(*args, **kwargs)
 
 
-class JointEmbedder(nn.Module):
+class JointTranslator(nn.Module):
     def __init__(self, arch: Architecture, doc_lang_size, code_lang_size, hidden_size=const.HIDDEN_SIZE,
                  batch_size=const.BATCH_SIZE):
-        super(JointEmbedder, self).__init__()
+        super(JointTranslator, self).__init__()
 
         self.enc_strs = []
         self.dec_strs = []

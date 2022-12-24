@@ -110,9 +110,9 @@ def criterion(loss_fn, outputs, targets):
     return loss
 
 
-def go(mode: Mode, arch: model.Architecture, joint_embedder, optimizer, dataloader, loss_fn, scaler, config,
+def go(mode: Mode, arch: model.Architecture, joint_translator, optimizer, dataloader, loss_fn, scaler, config,
        experiment=None, epoch=0):
-    joint_module = getattr(joint_embedder, 'module', joint_embedder)      # get module if wrapped in DDP
+    joint_module = getattr(joint_translator, 'module', joint_translator)      # get module if wrapped in DDP
     doc_lang = dataloader.dataset.doc_lang
     code_lang = dataloader.dataset.code_lang
 
@@ -127,9 +127,9 @@ def go(mode: Mode, arch: model.Architecture, joint_embedder, optimizer, dataload
     encoder_inputs = None
     
     if mode == Mode.TRAIN:
-        joint_embedder.train()
+        joint_translator.train()
     else:
-        joint_embedder.eval()
+        joint_translator.eval()
         torch.set_grad_enabled(False)
     
     for batch, batch_data in enumerate(dataloader):
@@ -145,7 +145,7 @@ def go(mode: Mode, arch: model.Architecture, joint_embedder, optimizer, dataload
         decoder_sizes = arch.get_decoder_sizes(doc_seqs[0].size(0), code_seqs[0].size(0))
 
         with optional(config['fp16'] and scaler, torch.cuda.amp.autocast):
-            decoders_outputs, outputs_seqs = joint_embedder(encoder_id, encoder_inputs, decoder_sizes)
+            decoders_outputs, outputs_seqs = joint_translator(encoder_id, encoder_inputs, decoder_sizes)
         batch_loss = criterion(loss_fn, decoders_outputs, [doc_seqs, code_seqs])
 
         if mode == Mode.TRAIN:
@@ -183,16 +183,16 @@ def go(mode: Mode, arch: model.Architecture, joint_embedder, optimizer, dataload
     return epoch_loss, torch.mean(epoch_accuracies)
 
 
-def train_loop(joint_embedder, arch, optimizer, dataloader, loss_fn, scaler, config, experiment=None, epoch=0):
-    return go(Mode.TRAIN, arch, joint_embedder, optimizer, dataloader, loss_fn, scaler, config, experiment, epoch)
+def train_loop(joint_translator, arch, optimizer, dataloader, loss_fn, scaler, config, experiment=None, epoch=0):
+    return go(Mode.TRAIN, arch, joint_translator, optimizer, dataloader, loss_fn, scaler, config, experiment, epoch)
 
 
-def valid_loop(joint_embedder, arch, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.VALID, arch, joint_embedder, None, dataloader, loss_fn, None, config, experiment, epoch)
+def valid_loop(joint_translator, arch, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.VALID, arch, joint_translator, None, dataloader, loss_fn, None, config, experiment, epoch)
 
 
-def test_loop(joint_embedder, arch, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.TEST, arch, joint_embedder, None, dataloader, loss_fn, None, config, experiment, epoch)
+def test_loop(joint_translator, arch, dataloader, loss_fn, config, experiment=None, epoch=0):
+    return go(Mode.TEST, arch, joint_translator, None, dataloader, loss_fn, None, config, experiment, epoch)
 
 
 def go_train(rank, world_size, arch_mode, experiment_name, port, train_data=None, valid_data=None):
@@ -212,7 +212,7 @@ def go_train(rank, world_size, arch_mode, experiment_name, port, train_data=None
     scaler = None
 
     arch = model.Architecture(arch_mode)
-    joint_embedder = model.JointEmbedder(arch, train_data.input_lang.n_words, train_data.output_lang.n_words)
+    joint_translator = model.JointTranslator(arch, train_data.input_lang.n_words, train_data.output_lang.n_words)
 
     experiment = Experiment(experiment_name)
     experiment.log_initial_params(world_size, arch, len(train_data), len(valid_data),
@@ -222,9 +222,9 @@ def go_train(rank, world_size, arch_mode, experiment_name, port, train_data=None
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=const.SHUFFLE_DATA)
         valid_sampler = torch.utils.data.distributed.DistributedSampler(valid_data, shuffle=const.SHUFFLE_DATA)
 
-        joint_embedder = DistributedDataParallel(joint_embedder.to(const.DEVICE),
-                                                 find_unused_parameters=const.DDP_FIND_UNUSED_PARAMETER,
-                                                 device_ids=[rank])
+        joint_translator = DistributedDataParallel(joint_translator.to(const.DEVICE),
+                                                   find_unused_parameters=const.DDP_FIND_UNUSED_PARAMETER,
+                                                   device_ids=[rank])
         scaler = torch.cuda.amp.GradScaler()
 
     shuffle = const.SHUFFLE_DATA if (train_sampler is None) else None
@@ -236,7 +236,7 @@ def go_train(rank, world_size, arch_mode, experiment_name, port, train_data=None
                                          num_workers=const.NUM_WORKERS_DATALOADER, pin_memory=const.PIN_MEMORY)
 
     loss_fn = nn.NLLLoss(ignore_index=const.PAD_TOKEN if const.IGNORE_PADDING_IN_LOSS else -100)
-    optimizer = optim.SGD(joint_embedder.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
+    optimizer = optim.SGD(joint_translator.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
 
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
     
@@ -259,18 +259,18 @@ def go_train(rank, world_size, arch_mode, experiment_name, port, train_data=None
                 train_sampler.set_epoch(epoch)
                 valid_sampler.set_epoch(epoch)
 
-            train_loop(joint_embedder, arch, optimizer, dataloader, loss_fn, scaler, config, experiment, epoch=epoch)
-            valid_loss, valid_accuracy = valid_loop(joint_embedder, arch, valid_dataloader, loss_fn, config, experiment,
+            train_loop(joint_translator, arch, optimizer, dataloader, loss_fn, scaler, config, experiment, epoch=epoch)
+            valid_loss, valid_accuracy = valid_loop(joint_translator, arch, valid_dataloader, loss_fn, config, experiment,
                                                     epoch=epoch)
 
             experiment.log_learning_rate(optimizer.param_groups[0]['lr'], epoch=epoch)
-            save.checkpoint_encoders_decoders(epoch, joint_embedder, valid_loss,
+            save.checkpoint_encoders_decoders(epoch, joint_translator, valid_loss,
                                               const.CHECKPOINT_PATH + const.SLURM_JOB_ID)
 
             scheduler.step()
             p.step()
 
-    save.model(joint_embedder.state_dict(), const.MODEL_JOINT_EMBEDDER_PATH)
+    save.model(joint_translator.state_dict(), const.MODEL_JOINT_TRANSLATOR_PATH)
     if ddp.is_dist_avail_and_initialized():
         ddp.cleanup()
     experiment.end()
