@@ -49,6 +49,7 @@ class CodeDataset(Dataset):
         self.path = path
         self.doc_lang = None
         self.code_lang = None
+        self.negatives = create_negatives
         if languages:
             self.set_languages(languages)
         self.working_items = ['docstring_tokens', 'docstring_tokens_length', 'code_sequence', 'code_sequence_length',
@@ -72,7 +73,7 @@ class CodeDataset(Dataset):
 
         self.df.reset_index(drop=True, inplace=True)
 
-        if create_negatives:
+        if self.create_negatives:
             self.create_negatives()
 
         if build_language:
@@ -95,7 +96,7 @@ class CodeDataset(Dataset):
         :return: doc, doc_length, code_sequence, code_sequence_length, methode_name, methode_name_length,
                  code_tokens, url
         """
-        return self.df[idx][:2], self.df[idx][2:6], self.df[idx][6:8], self.df[idx][8:]
+        return self.df[idx]
 
     def get_langs(self):
         return self.doc_lang, self.code_lang
@@ -107,15 +108,15 @@ class CodeDataset(Dataset):
     def create_negatives(self):
         self.working_items += ['neg_' + item for item in self.working_items]
 
-        self.df.loc[:, 'neg_docstring_tokens'] = self.df.loc[:, 'docstring_tokens'].copy().sample(frac=1)\
-            .reset_index(drop=True)
+        self.df.loc[:, 'neg_docstring_tokens'] = self.df.loc[:, 'docstring_tokens'].copy().sample(frac=1).reset_index(drop=True)
         self.df.loc[:, 'neg_docstring_tokens_length'] = self.df.loc[:, 'neg_docstring_tokens'].copy().map(len)
 
-        self.df.loc[:, 'neg_code_sequence'] = self.df.loc[:, 'code_sequence'].copy().sample(frac=1)\
-            .reset_index(drop=True)
+        self.df.loc[:, 'neg_code_sequence'] = self.df.loc[:, 'code_sequence'].copy().sample(frac=1).reset_index(drop=True)
         self.df.loc[:, 'neg_code_sequence_length'] = self.df.loc[:, 'neg_code_sequence'].copy().map(len)
+
         self.df.loc[:, 'neg_methode_name'] = self.df.loc[:, 'methode_name'].copy().sample(frac=1).reset_index(drop=True)
         self.df.loc[:, 'neg_methode_name_length'] = self.df.loc[:, 'neg_methode_name'].copy().map(len)
+
         self.df.loc[:, 'neg_code_tokens'] = self.df.loc[:, 'code_tokens'].copy().sample(frac=1).reset_index(drop=True)
 
     def build_language(self, languages=None):
@@ -143,10 +144,19 @@ class CodeDataset(Dataset):
         self.df.loc[:, 'code_sequence'] = self.df.loc[:, 'code_sequence'].map(self.code_lang.tensor_from_sequence)
         self.df.loc[:, 'code_tokens'] = self.df.loc[:, 'code_tokens'].map(self.code_lang.tensor_from_sequence)
         self.df.loc[:, 'methode_name'] = self.df.loc[:, 'methode_name'].map(self.code_lang.tensor_from_sequence)
+        if self.negatives:
+            self.df.loc[:, 'neg_docstring_tokens'] = self.df.loc[:, 'neg_docstring_tokens'].map(self.doc_lang.tensor_from_sequence)
+            self.df.loc[:, 'neg_code_sequence'] = self.df.loc[:, 'neg_code_sequence'].map(self.code_lang.tensor_from_sequence)
+            self.df.loc[:, 'neg_code_tokens'] = self.df.loc[:, 'neg_code_tokens'].map(self.code_lang.tensor_from_sequence)
+            self.df.loc[:, 'neg_methode_name'] = self.df.loc[:, 'neg_methode_name'].map(self.code_lang.tensor_from_sequence)
 
         self.df.loc[:, 'docstring_tokens_length'] = self.df.loc[:, 'docstring_tokens'].copy().map(len)
         self.df.loc[:, 'code_sequence_length'] = self.df.loc[:, 'code_sequence'].copy().map(len)
         self.df.loc[:, 'methode_name_length'] = self.df.loc[:, 'methode_name'].copy().map(len)
+        if self.negatives:
+            self.df.loc[:, 'neg_docstring_tokens_length'] = self.df.loc[:, 'neg_docstring_tokens'].copy().map(len)
+            self.df.loc[:, 'neg_code_sequence_length'] = self.df.loc[:, 'neg_code_sequence'].copy().map(len)
+            self.df.loc[:, 'neg_methode_name_length'] = self.df.loc[:, 'neg_methode_name'].copy().map(len)
 
         self.to_list()
 
