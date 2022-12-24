@@ -35,6 +35,7 @@ parser.add_argument('-g', '--gpu', action='store_true', default=False, help='Run
 parser.add_argument('-lad', '--last-data', action='store_true', default=False, help='Use last working dataset.')
 parser.add_argument('-arch', '--architecture', choices=['normal', 'doc_doc', 'code_code', 'doc_code', 'code_doc'],
                     default='normal', help='The model architecture to be used for training.')
+parser.add_argument('-m', '--model', choices=['translator', 'embedder'], help='What model to use.')
 
 
 class Mode(Enum):
@@ -64,6 +65,229 @@ def print_time(prefix=''):
     return wrapper
 
 
+class Trainer:
+    def __init__(self, arch: model.Architecture, module: nn.Module,
+                 data: tuple[loader.CodeDataset, loader.CodeDataset, loader.CodeDataset], config,
+                 experiment: comet.Experiment):
+        self.arch = arch
+        self.model = module
+        self.config = config
+        self.experiment = experiment
+        self.device = self.config['device']         # or just use config??
+
+        self.train_data, self.valid_data, self.test_data = data
+
+        self.doc_lang = self.train_data.doc_lang
+        self.code_lang = self.train_data.code_lang
+
+        self.model_type = model.ModelType.TRANSLATOR if isinstance(self.model, model.JointTranslator) \
+            else model.JointEmbedder
+
+        self.train_sampler = None
+        self.valid_sampler = None
+        self.test_sampler = None
+        self.scaler = None
+
+        if ddp.is_dist_avail_and_initialized():
+            self.train_sampler = torch.utils.data.distributed.DistributedSampler(self.train_data,
+                                                                                 shuffle=self.config['shuffle_data'])
+            self.valid_sampler = torch.utils.data.distributed.DistributedSampler(self.valid_data,
+                                                                                 shuffle=self.config['shuffle_data'])
+            self.test_sampler = torch.utils.data.distributed.DistributedSampler(self.test_data,
+                                                                                shuffle=self.config['shuffle_data'])
+
+            self.model = DistributedDataParallel(self.model.to(self.device),
+                                                 find_unused_parameters=self.config['ddp_find_unused_parameter'],
+                                                 device_ids=[self.config['rank']])
+            self.scaler = torch.cuda.amp.GradScaler()
+
+        shuffle = self.config['shuffle_data'] if (self.train_sampler is None) else None
+        self.train_dataloader = loader.DataLoader(self.train_data, batch_size=self.config['batch_size'],
+                                                  shuffle=shuffle, collate_fn=pad_collate.collate,
+                                                  sampler=self.train_sampler, drop_last=True,
+                                                  num_workers=self.config['num_workers_dataloader'],
+                                                  pin_memory=self.config['pin_memory'])
+        self.valid_dataloader = loader.DataLoader(self.valid_data, batch_size=self.config['batch_size'],
+                                                  shuffle=shuffle, collate_fn=pad_collate.collate,
+                                                  sampler=self.valid_sampler, drop_last=True,
+                                                  num_workers=self.config['num_workers_dataloader'],
+                                                  pin_memory=self.config['pin_memory'])
+        self.test_dataloader = loader.DataLoader(self.test_data, batch_size=self.config['batch_size'],
+                                                 shuffle=shuffle, collate_fn=pad_collate.collate,
+                                                 sampler=self.test_sampler, drop_last=True,
+                                                 num_workers=self.config['num_workers_dataloader'],
+                                                 pin_memory=self.config['pin_memory'])
+
+        self.loss_fn = nn.NLLLoss(ignore_index=self.config['pad_token']
+                                  if self.config['ignore_padding_in_loss'] else -100)
+        self.optimizer = optim.SGD(self.model.parameters(), lr=self.config['learning_rate'],
+                                   momentum=self.config['momentum'])
+
+        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=self.config['lr_step_size'],
+                                                   gamma=self.config['lr_gamma'])
+
+    def batch_data_to_device(self, batch):
+        return tuple(elem.to(self.device, non_blocking=True) if torch.is_tensor(elem) else elem for elem in batch)
+
+    def get_correct(self, results, targets):
+        targets_mask = targets != const.PAD_TOKEN
+        results_masked = results.where(targets_mask, torch.tensor(-1, device=self.device))
+        targets_masked = targets.where(targets_mask, torch.tensor(-1, device=self.device))
+        return (results_masked == targets_masked).all(axis=1).sum()
+
+    def get_accuracies(self, outputs_seqs, doc_seqs, code_seqs):
+        if self.arch.n_decoders == 2:
+            return torch.stack((self.get_correct(outputs_seqs[0], doc_seqs) / self.config['batch_size'],
+                                self.get_correct(outputs_seqs[1], code_seqs) / self.config['batch_size']))
+
+        if self.arch.Type.DOC in self.arch.decoders:
+            return (self.get_correct(outputs_seqs[0], doc_seqs) / self.config['batch_size']).unsqueeze(0)
+        if self.arch.Type.CODE in self.arch.decoders:
+            return (self.get_correct(outputs_seqs[0], code_seqs) / self.config['batch_size']).unsqueeze(0)
+
+    def get_decoder_loss(self, decoder_outputs, targets):
+        loss = 0
+        target_length = targets.shape[0]
+
+        for i in range(target_length):
+            current_loss = self.loss_fn(decoder_outputs[i], targets[i])
+            loss += current_loss
+        return loss / target_length
+
+    def criterion(self, outputs, targets):
+        loss = 0
+        for i, output in enumerate(outputs):
+            loss += self.get_decoder_loss(output.permute(1, 0, 2), targets[i].T)
+        return loss
+
+    def _go(self, mode: Mode, dataloader: loader.DataLoader, epoch: int):
+        data_size = len(dataloader.dataset) / self.config['world_size']
+        num_batches = int(data_size / self.config['batch_size'])
+
+        epoch_loss = torch.zeros(1, device=self.config['device'])
+        epoch_accuracies = torch.zeros(self.arch.n_decoders, device=self.config['device'])
+        batch_accuracies = torch.zeros(self.arch.n_decoders, device=self.config['device'])
+        outputs_seqs = None
+        encoder_id = None
+        encoder_inputs = None
+
+        translations = None
+
+        if mode == Mode.TRAIN:
+            self.model.train()
+        else:
+            self.model.eval()
+
+        with optional(mode != Mode.TRAIN, torch.no_grad):
+            for batch, batch_data in enumerate(dataloader):
+                batch_data = self.batch_data_to_device(batch_data)
+
+                doc_inputs = batch_data[:2]
+                code_inputs = batch_data[2:7]
+                neg_doc_inputs = batch_data[7:9]
+                neg_code_inputs = batch_data[9:]
+
+                doc_seqs, doc_seq_lengths = doc_inputs
+                code_seqs, code_seq_lengths, methode_names, methode_name_lengths, code_tokens = code_inputs
+
+                if mode == Mode.TRAIN:
+                    self.optimizer.zero_grad(set_to_none=self.config['set_gradients_none'])
+
+                if self.model_type == model.ModelType.TRANSLATOR:
+                    encoder_id = self.arch.get_rand_encoder_id()
+                    encoder_inputs = self.arch.get_encoder_input(encoder_id, doc_inputs, code_inputs)
+                    decoder_sizes = self.arch.get_decoder_sizes(doc_seqs[0].size(0), code_seqs[0].size(0))
+
+                    with optional(self.config['fp16'] and self.scaler, torch.cuda.amp.autocast):
+                        decoders_outputs, outputs_seqs = self.model(encoder_id, encoder_inputs, decoder_sizes)
+                    batch_loss = self.criterion(decoders_outputs, [doc_seqs, code_seqs])
+                else:
+                    with optional(self.config['fp16'] and self.scaler, torch.cuda.amp.autocast):
+                        batch_loss = self.model(doc_inputs, code_inputs, neg_doc_inputs, neg_code_inputs)
+
+                # TODO: torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0) after backward() before step() ?? necessary??
+                if mode == Mode.TRAIN:
+                    if self.scaler:
+                        self.scaler.scale(batch_loss).backward()
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
+                    else:
+                        batch_loss.backward()
+                        self.optimizer.step()
+
+                if self.config['log_in_training'] or mode != Mode.TRAIN:
+                    epoch_loss += batch_loss
+                    if self.model_type == model.ModelType.TRANSLATOR:
+                        batch_accuracies = self.get_accuracies(outputs_seqs, doc_seqs, code_seqs)
+                        epoch_accuracies += batch_accuracies
+
+                    if self.experiment and mode == Mode.TRAIN:
+                        # TODO: rework gradients
+                        grad_norms = [get_grad_norm(module) for module_list in self.model.children()
+                                      for module in module_list.children()]
+                        self.experiment.log_metrics(mode.value, batch_loss, batch_accuracies, grad_norms,
+                                                    step=epoch * data_size / self.config['batch_size'] + batch)
+
+            if self.config['log_in_training'] or mode != Mode.TRAIN:
+                epoch_loss /= num_batches
+                epoch_accuracies /= num_batches
+
+                if self.experiment:
+                    if self.model_type == model.ModelType.TRANSLATOR:
+                        outputs_seqs = [out[:5] for out in outputs_seqs]
+                        input_lang = self.arch.get_encoder_lang(encoder_id, self.doc_lang, self.code_lang)
+                        output_langs = self.arch.get_decoder_languages(self.doc_lang, self.code_lang)
+                        translations = comet.generate_text_seq(input_lang, output_langs, encoder_inputs[0][:5],
+                                                               outputs_seqs, epoch)
+                    self.experiment.log_metrics(mode.value, epoch_loss, epoch_accuracies, text=translations,
+                                                epoch=epoch)
+
+        return epoch_loss, torch.mean(epoch_accuracies)
+
+    def _train(self, epoch: int):
+        return self._go(Mode.TRAIN, self.train_dataloader, epoch)
+
+    def _valid(self, epoch: int):
+        return self._go(Mode.VALID, self.valid_dataloader, epoch)
+
+    def _test(self):
+        return self._go(Mode.TEST, self.test_dataloader, -1)
+
+    def save_checkpoint(self, epoch, loss):
+        save.checkpoint_encoders_decoders(epoch, self.model, loss,
+                                          self.config['checkpoint_path'] + self.config['slurm_job_id'])
+
+    def save_model(self):
+        save.model(self.model.state_dict(), self.config['model_save_path'])
+
+    def cleanup(self):
+        if ddp.is_dist_avail_and_initialized():
+            ddp.cleanup()
+        self.experiment.end()
+
+    def train(self):
+        with profiler.Profiler(active=const.PROFILER_IS_ACTIVE) as p:
+            for epoch in range(self.config['epochs']):
+                print(f"Epoch {epoch + 1}\n-------------------------------")
+                if self.train_sampler and self.valid_sampler:
+                    self.train_sampler.set_epoch(epoch)
+                    self.valid_sampler.set_epoch(epoch)
+
+                self._train(epoch)
+                valid_loss, valid_accuracy = self._valid(epoch)
+
+                self.experiment.log_learning_rate(self.optimizer.param_groups[0]['lr'], epoch=epoch)
+                self.save_checkpoint(epoch, valid_loss)
+
+                self.scheduler.step()
+                p.step()
+            test_loss, test_accuracy = self._test()
+            self.experiment.log_metrics(Mode.TEST, test_loss, test_accuracy, epoch=epoch)
+
+        self.save_model()
+        self.cleanup()
+
+
 def get_grad_norm(model):
     total_norm = 0.0
     parameters = [p for p in model.parameters() if p.grad is not None and p.requires_grad]
@@ -74,128 +298,8 @@ def get_grad_norm(model):
     return total_norm
 
 
-def get_correct(results, targets):
-    targets_mask = targets != const.PAD_TOKEN
-    device = targets.device
-    results_masked = results.where(targets_mask, torch.tensor(-1, device=device))
-    targets_masked = targets.where(targets_mask, torch.tensor(-1, device=device))
-    return (results_masked == targets_masked).all(axis=1).sum()
-
-
-def get_accuracies(outputs_seqs, doc_seqs, code_seqs, arch, batch_size):
-    if arch.n_decoders == 2:
-        return torch.stack((get_correct(outputs_seqs[0], doc_seqs) / batch_size,
-                            get_correct(outputs_seqs[1], code_seqs) / batch_size))
-
-    if arch.Type.DOC in arch.decoders:
-        return (get_correct(outputs_seqs[0], doc_seqs) / batch_size).unsqueeze(0)
-    if arch.Type.CODE in arch.decoders:
-        return (get_correct(outputs_seqs[0], code_seqs) / batch_size).unsqueeze(0)
-
-
-def get_decoder_loss(loss_fn, decoder_outputs, targets):
-    loss = 0
-    target_length = targets.shape[0]
-
-    for i in range(target_length):
-        current_loss = loss_fn(decoder_outputs[i], targets[i])
-        loss += current_loss
-    return loss / target_length
-
-
-def criterion(loss_fn, outputs, targets):
-    loss = 0
-    for i, output in enumerate(outputs):
-        loss += get_decoder_loss(loss_fn, output.permute(1, 0, 2), targets[i].T)
-    return loss
-
-
-def go(mode: Mode, arch: model.Architecture, joint_translator, optimizer, dataloader, loss_fn, scaler, config,
-       experiment=None, epoch=0):
-    joint_module = getattr(joint_translator, 'module', joint_translator)      # get module if wrapped in DDP
-    doc_lang = dataloader.dataset.doc_lang
-    code_lang = dataloader.dataset.code_lang
-
-    world_size = dist.get_world_size() if dist.is_initialized() else 1
-    size = len(dataloader.dataset) / world_size
-    num_batches = int(size / config['batch_size'])
-    
-    epoch_loss = torch.zeros(1, device=config['device'])
-    epoch_accuracies = torch.zeros(arch.n_decoders, device=config['device'])
-    outputs_seqs = None
-    encoder_id = None
-    encoder_inputs = None
-    
-    if mode == Mode.TRAIN:
-        joint_translator.train()
-    else:
-        joint_translator.eval()
-        torch.set_grad_enabled(False)
-    
-    for batch, batch_data in enumerate(dataloader):
-        doc_seqs, doc_seq_lengths, code_seqs, code_seq_lengths, methode_names, methode_name_lengths, code_tokens = \
-            (elem.to(config['device'], non_blocking=True) if torch.is_tensor(elem) else elem for elem in batch_data)
-        
-        if mode == Mode.TRAIN:
-            optimizer.zero_grad(set_to_none=const.SET_GRADIENTS_NONE)
-
-        encoder_id = arch.get_rand_encoder_id()
-        encoder_inputs = arch.get_encoder_input(encoder_id, doc_seqs, doc_seq_lengths, code_seqs, code_seq_lengths,
-                                                methode_names, methode_name_lengths, code_tokens)
-        decoder_sizes = arch.get_decoder_sizes(doc_seqs[0].size(0), code_seqs[0].size(0))
-
-        with optional(config['fp16'] and scaler, torch.cuda.amp.autocast):
-            decoders_outputs, outputs_seqs = joint_translator(encoder_id, encoder_inputs, decoder_sizes)
-        batch_loss = criterion(loss_fn, decoders_outputs, [doc_seqs, code_seqs])
-
-        if mode == Mode.TRAIN:
-            if scaler:
-                scaler.scale(batch_loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                batch_loss.backward()
-                optimizer.step()
-
-        if const.LOG_IN_TRAINING or mode != Mode.TRAIN:
-            epoch_loss += batch_loss
-            batch_accuracies = get_accuracies(outputs_seqs, doc_seqs, code_seqs, arch, config['batch_size'])
-            epoch_accuracies += batch_accuracies
-
-            if experiment and mode == Mode.TRAIN and const.LOG_BATCHES:
-                grad_norms = [get_grad_norm(module) for module_list in joint_module.children()
-                              for module in module_list.children()]
-                experiment.log_batch_metrics(mode.value, batch_loss, batch_accuracies, grad_norms,
-                                             step=epoch * size / config['batch_size'] + batch)
-
-    if const.LOG_IN_TRAINING or mode != Mode.TRAIN:
-        epoch_loss /= num_batches
-        epoch_accuracies /= num_batches
-
-        if experiment:
-            outputs_seqs = [out[:5] for out in outputs_seqs]
-            input_lang = arch.get_encoder_lang(encoder_id, doc_lang, code_lang)
-            output_langs = arch.get_decoder_languages(doc_lang, code_lang)
-            translations = comet.generate_text_seq(input_lang, output_langs, encoder_inputs[0][:5], outputs_seqs, epoch)
-            experiment.log_epoch_metrics(mode.value, epoch_loss, epoch_accuracies, translations, epoch=epoch)
-
-    torch.set_grad_enabled(True)
-    return epoch_loss, torch.mean(epoch_accuracies)
-
-
-def train_loop(joint_translator, arch, optimizer, dataloader, loss_fn, scaler, config, experiment=None, epoch=0):
-    return go(Mode.TRAIN, arch, joint_translator, optimizer, dataloader, loss_fn, scaler, config, experiment, epoch)
-
-
-def valid_loop(joint_translator, arch, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.VALID, arch, joint_translator, None, dataloader, loss_fn, None, config, experiment, epoch)
-
-
-def test_loop(joint_translator, arch, dataloader, loss_fn, config, experiment=None, epoch=0):
-    return go(Mode.TEST, arch, joint_translator, None, dataloader, loss_fn, None, config, experiment, epoch)
-
-
-def go_train(rank, world_size, arch_mode, experiment_name, port, train_data=None, valid_data=None):
+def go_train(rank, world_size, arch_mode, module, experiment_name, port, train_data: loader.CodeDataset = None,
+             valid_data: loader.CodeDataset = None, test_data: loader.CodeDataset = None):
     if rank is not None:
         ddp.setup(rank, world_size, port)
 
@@ -205,75 +309,54 @@ def go_train(rank, world_size, arch_mode, experiment_name, port, train_data=None
     if not valid_data:
         with open(const.DATA_WORKING_VALID_PATH, 'rb') as valid_file:
             valid_data = pickle.load(valid_file)
+    if not test_data:
+        with open(const.DATA_WORKING_TEST_PATH, 'rb') as test_file:
+            test_data = pickle.load(test_file)
 
-    train_sampler = None
-    valid_sampler = None
-
-    scaler = None
-
-    arch = model.Architecture(arch_mode)
-    joint_translator = model.JointTranslator(arch, train_data.input_lang.n_words, train_data.output_lang.n_words)
-
-    experiment = Experiment(experiment_name)
-    experiment.log_initial_params(world_size, arch, len(train_data), len(valid_data),
-                                  train_data.input_lang.n_words, train_data.output_lang.n_words)
-
-    if ddp.is_dist_avail_and_initialized():
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_data, shuffle=const.SHUFFLE_DATA)
-        valid_sampler = torch.utils.data.distributed.DistributedSampler(valid_data, shuffle=const.SHUFFLE_DATA)
-
-        joint_translator = DistributedDataParallel(joint_translator.to(const.DEVICE),
-                                                   find_unused_parameters=const.DDP_FIND_UNUSED_PARAMETER,
-                                                   device_ids=[rank])
-        scaler = torch.cuda.amp.GradScaler()
-
-    shuffle = const.SHUFFLE_DATA if (train_sampler is None) else None
-    dataloader = loader.DataLoader(train_data, batch_size=const.BATCH_SIZE, shuffle=shuffle,
-                                   collate_fn=pad_collate.collate, sampler=train_sampler, drop_last=True,
-                                   num_workers=const.NUM_WORKERS_DATALOADER, pin_memory=const.PIN_MEMORY)
-    valid_dataloader = loader.DataLoader(valid_data, batch_size=const.BATCH_SIZE, shuffle=shuffle,
-                                         collate_fn=pad_collate.collate, sampler=valid_sampler, drop_last=True,
-                                         num_workers=const.NUM_WORKERS_DATALOADER, pin_memory=const.PIN_MEMORY)
-
-    loss_fn = nn.NLLLoss(ignore_index=const.PAD_TOKEN if const.IGNORE_PADDING_IN_LOSS else -100)
-    optimizer = optim.SGD(joint_translator.parameters(), lr=const.LEARNING_RATE, momentum=const.MOMENTUM)
-
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=const.LR_STEP_SIZE, gamma=const.LR_GAMMA)
-    
     config = {
-        'batch_size': const.BATCH_SIZE,
+        'rank': rank,
+        'world_size': dist.get_world_size() if dist.is_initialized() else 1,
+        'slurm_job_id': const.SLURM_JOB_ID,
+
+        'model_save_path': const.MODEL_JOINT_TRANSLATOR_PATH,  # TODO: generalize
+        'checkpoint_path': const.CHECKPOINT_PATH,
+
+        'pad_token': const.PAD_TOKEN,
+
+        'ignore_padding_in_loss': const.IGNORE_PADDING_IN_LOSS,
+        'shuffle_data': const.SHUFFLE_DATA,
+        'num_workers_dataloader': const.NUM_WORKERS_DATALOADER,
+        'pin_memory': const.PIN_MEMORY,
+        'log_in_training': const.LOG_IN_TRAINING,
+        'fp16': const.FP16,
+        'set_gradients_none': const.SET_GRADIENTS_NONE,
+        'ddp_find_unused_parameter': const.DDP_FIND_UNUSED_PARAMETER,
+
         'bidirectional': const.BIDIRECTIONAL,
         'encoder_layers': const.ENCODER_LAYERS,
         'hidden_size': const.HIDDEN_SIZE,
+
+        'learning_rate': const.LEARNING_RATE,
+        'momentum': const.MOMENTUM,
+        'epochs': const.EPOCHS,
+        'batch_size': const.BATCH_SIZE,
+        'lr_step_size': const.LR_STEP_SIZE,
+        'lr_gamma': const.LR_GAMMA,
         'grad_clipping_enabled': const.GRADIENT_CLIPPING_ENABLED,
         'grad_clipping_max_norm': const.GRADIENT_CLIPPING_MAX_NORM,
         'grad_clipping_norm_type': const.GRADIENT_CLIPPING_NORM_TYPE,
+
         'device': const.DEVICE,
-        'fp16': const.FP16,
     }
 
-    with profiler.Profiler(active=const.PROFILER_IS_ACTIVE) as p:
-        for epoch in range(const.EPOCHS):
-            print(f"Epoch {epoch + 1}\n-------------------------------")
-            if train_sampler and valid_sampler:
-                train_sampler.set_epoch(epoch)
-                valid_sampler.set_epoch(epoch)
+    arch = model.Architecture(arch_mode)
 
-            train_loop(joint_translator, arch, optimizer, dataloader, loss_fn, scaler, config, experiment, epoch=epoch)
-            valid_loss, valid_accuracy = valid_loop(joint_translator, arch, valid_dataloader, loss_fn, config, experiment,
-                                                    epoch=epoch)
+    experiment = Experiment(experiment_name)
+    experiment.log_initial_params(world_size, arch, len(train_data), len(valid_data),
+                                  train_data.doc_lang.n_words, train_data.code_lang.n_words)
 
-            experiment.log_learning_rate(optimizer.param_groups[0]['lr'], epoch=epoch)
-            save.checkpoint_encoders_decoders(epoch, joint_translator, valid_loss,
-                                              const.CHECKPOINT_PATH + const.SLURM_JOB_ID)
-
-            scheduler.step()
-            p.step()
-
-    save.model(joint_translator.state_dict(), const.MODEL_JOINT_TRANSLATOR_PATH)
-    if ddp.is_dist_avail_and_initialized():
-        ddp.cleanup()
-    experiment.end()
+    trainer = Trainer(arch, module, (train_data, valid_data, test_data), config, experiment)
+    trainer.train()
 
 
 @print_time('\nTotal ')
@@ -322,17 +405,24 @@ def run(args):
         pickle.dump(test_data, open(const.DATA_WORKING_TEST_PATH, 'wb'))
         pickle.dump(valid_data, open(const.DATA_WORKING_VALID_PATH, 'wb'))
 
+    if args.model == 'translator':
+        arch = model.Architecture(arch_mode)
+        module = model.JointTranslator(arch, train_data.doc_lang.n_words, train_data.code_lang.n_words)
+    else:
+        module = model.JointEmbedder(train_data.doc_lang.n_words, train_data.code_lang.n_words)
+        const.LEARNING_RATE = 1.34e-4
+
     experiment_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(const.COMET_EXP_NAME_LENGTH))
     port = ddp.find_free_port(const.MASTER_ADDR)
 
     print(f'CUDA_DEVICE_COUNT: {const.CUDA_DEVICE_COUNT}')
     if args.gpu:
-        ddp.run(go_train, const.CUDA_DEVICE_COUNT, arch_mode, experiment_name, port)
+        ddp.run(go_train, const.CUDA_DEVICE_COUNT, arch_mode, module, experiment_name, port)
     else:
         if not args.last_data:
-            go_train(None, 1, arch_mode, experiment_name, port, train_data, valid_data)
+            go_train(None, 1, arch_mode, module, experiment_name, port, train_data, valid_data)
         else:
-            go_train(None, 1, arch_mode, experiment_name, port)
+            go_train(None, 1, arch_mode, module, experiment_name, port)
 
 
 if __name__ == '__main__':
