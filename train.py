@@ -115,8 +115,8 @@ def criterion(loss_fn, outputs, targets):
 def go(mode: Mode, arch: model.Architecture, joint_embedder, optimizer, dataloader, loss_fn, scaler, config,
        experiment=None, epoch=0):
     joint_module = getattr(joint_embedder, 'module', joint_embedder)      # get module if wrapped in DDP
-    doc_lang = dataloader.dataset.input_lang
-    code_lang = dataloader.dataset.output_lang
+    doc_lang = dataloader.dataset.doc_lang
+    code_lang = dataloader.dataset.code_lang
 
     world_size = dist.get_world_size() if dist.is_initialized() else 1
     size = len(dataloader.dataset) / world_size
@@ -336,7 +336,7 @@ def run(args):
             test_data.to_list()
             valid_data.to_list()
     elif not args.last_data:
-        input_lang = data.Lang('docstring')
+        input_lang = data.Lang('doc')
         output_lang = data.Lang('code')
         train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/',
                                         labels_only=const.LABELS_ONLY, languages=[input_lang, output_lang],

@@ -47,8 +47,8 @@ class CodeDataset(Dataset):
                  min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE, labels_only=False,
                  languages=None, build_language=True, to_tensors=True, remove_duplicates=True, sort=False):
         self.path = path
-        self.input_lang = None
-        self.output_lang = None
+        self.doc_lang = None
+        self.code_lang = None
         if languages:
             self.set_languages(languages)
         self.labels_only = labels_only
@@ -99,7 +99,7 @@ class CodeDataset(Dataset):
         return self.df[idx]
 
     def get_langs(self):
-        return self.input_lang, self.output_lang
+        return self.doc_lang, self.code_lang
 
     def remove_duplicates(self):
         self.df = remove_duplicate_code_df(self.df)
@@ -109,25 +109,28 @@ class CodeDataset(Dataset):
         print('building language dictionaries')
         if languages:
             self.set_languages(languages)
+        else:
+            self.doc_lang = data.Lang('doc')
+            self.code_lang = data.Lang('code')
 
-        self.df.loc[:, 'docstring_tokens'].map(self.input_lang.add_sequence)
-        self.df.loc[:, 'code_sequence'].map(self.output_lang.add_sequence)
+        self.df.loc[:, 'docstring_tokens'].map(self.doc_lang.add_sequence)
+        self.df.loc[:, 'code_sequence'].map(self.code_lang.add_sequence)
 
-        self.input_lang.reduce_vocab(max_tokens=const.PREPROCESS_VOCAB_SIZE_CODE)
-        self.output_lang.reduce_vocab(max_tokens=const.PREPROCESS_VOCAB_SIZE_CODE)
+        self.doc_lang.reduce_vocab(max_tokens=const.PREPROCESS_VOCAB_SIZE_CODE)
+        self.code_lang.reduce_vocab(max_tokens=const.PREPROCESS_VOCAB_SIZE_CODE)
 
     def set_languages(self, languages):
-        self.input_lang = languages[0]
-        self.output_lang = languages[1]
+        self.doc_lang = languages[0]
+        self.code_lang = languages[1]
 
     def to_tensors(self):
-        assert self.input_lang and self.output_lang
+        assert self.doc_lang and self.code_lang
         print('converting sequences to tensors')
         self.df.loc[:, 'docstring_tokens'] = self.df.loc[:, 'docstring_tokens'].map(
-            self.input_lang.tensor_from_sequence)
-        self.df.loc[:, 'code_sequence'] = self.df.loc[:, 'code_sequence'].map(self.output_lang.tensor_from_sequence)
-        self.df.loc[:, 'code_tokens'] = self.df.loc[:, 'code_tokens'].map(self.output_lang.tensor_from_sequence)
-        self.df.loc[:, 'methode_name'] = self.df.loc[:, 'methode_name'].map(self.output_lang.tensor_from_sequence)
+            self.doc_lang.tensor_from_sequence)
+        self.df.loc[:, 'code_sequence'] = self.df.loc[:, 'code_sequence'].map(self.code_lang.tensor_from_sequence)
+        self.df.loc[:, 'code_tokens'] = self.df.loc[:, 'code_tokens'].map(self.code_lang.tensor_from_sequence)
+        self.df.loc[:, 'methode_name'] = self.df.loc[:, 'methode_name'].map(self.code_lang.tensor_from_sequence)
 
         self.df.loc[:, 'docstring_tokens_length'] = self.df.loc[:, 'docstring_tokens'].copy().map(len)
         self.df.loc[:, 'code_sequence_length'] = self.df.loc[:, 'code_sequence'].copy().map(len)

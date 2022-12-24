@@ -22,8 +22,8 @@ def tune_train(config, checkpoint_dir=None):
     with open(const.DATA_WORKING_VALID_PATH, 'rb') as valid_file:
         valid_data = pickle.load(valid_file)
 
-    input_lang = train_data.input_lang
-    output_lang = train_data.output_lang
+    input_lang = train_data.doc_lang
+    output_lang = train_data.code_lang
 
     encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, config['batch_size'], input_lang)
     decoder = model.DecoderRNNWrapped(const.HIDDEN_SIZE, output_lang.n_words, config['batch_size'], output_lang)
@@ -95,8 +95,8 @@ def run_test(best_trial, gpus_per_trial):
     with open(const.DATA_WORKING_TEST_PATH, 'rb') as valid_file:
         test_data = pickle.load(valid_file)
 
-    input_lang = test_data.input_lang
-    output_lang = test_data.output_lang
+    input_lang = test_data.doc_lang
+    output_lang = test_data.code_lang
 
     batch_size = int(best_trial.config['batch_size'])
     best_encoder = model.EncoderRNN(input_lang.n_words, const.HIDDEN_SIZE, batch_size, input_lang)
