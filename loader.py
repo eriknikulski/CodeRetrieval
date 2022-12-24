@@ -127,11 +127,13 @@ class CodeDataset(Dataset):
             self.doc_lang = data.Lang('doc')
             self.code_lang = data.Lang('code')
 
+        # TODO: implement this correctly
         self.df.loc[:, 'docstring_tokens'].map(self.doc_lang.add_sequence)
-        self.df.loc[:, 'code_sequence'].map(self.code_lang.add_sequence)
+        self.df.loc[:, 'code_sequence'].map(self.doc_lang.add_sequence)
 
-        self.doc_lang.reduce_vocab(max_tokens=const.PREPROCESS_VOCAB_SIZE_CODE)
-        self.code_lang.reduce_vocab(max_tokens=const.PREPROCESS_VOCAB_SIZE_CODE)
+        self.doc_lang.reduce_vocab(max_tokens=2 * const.PREPROCESS_VOCAB_SIZE_CODE)
+        # self.code_lang.reduce_vocab(max_tokens=const.PREPROCESS_VOCAB_SIZE_CODE)
+        self.code_lang = self.doc_lang
 
     def set_languages(self, languages):
         self.doc_lang = languages[0]
