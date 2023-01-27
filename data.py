@@ -133,7 +133,6 @@ def split_subtokens(s):
 
 def normalize_code(s):
     s = s.encode('ascii', 'ignore').decode('ascii')
-    s = s.lower()
     return re.sub(r'^\s*@.*', r'', s, flags=re.MULTILINE)
 
 

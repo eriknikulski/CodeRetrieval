@@ -57,15 +57,19 @@ class CodeDataset(Dataset):
 
         self.df = read_folder(RichPath.create(path))
         self.df.loc[:, 'docstring_tokens'] = self.df.loc[:, 'docstring_tokens'].copy().map(transform)
-        self.df.loc[:, 'code_sequence'] = self.df.loc[:, 'code'].copy().map(target_transform)
+        self.df.loc[:, 'code_sequence'] = self.df.loc[:, 'code'].copy().map(target_transform)\
+            .map(lambda x: list(map(str.lower, x)))
 
         self.df.loc[:, 'docstring_tokens_length'] = self.df.loc[:, 'docstring_tokens'].copy().map(len)
         self.df.loc[:, 'code_sequence_length'] = self.df.loc[:, 'code_sequence'].copy().map(len)
 
-        self.df.loc[:, 'methode_name'] = self.df.loc[:, 'code'].copy().map(get_methode_name)
+        self.df.loc[:, 'methode_name'] = self.df.loc[:, 'code'].copy().map(get_methode_name)\
+            .map(lambda x: list(map(str.lower, x)))
+
         self.df.loc[:, 'methode_name_length'] = self.df.loc[:, 'methode_name'].copy().map(len)
 
-        self.df.loc[:, 'code_tokens'] = self.df.loc[:, 'code'].copy().map(get_code_tokens)
+        self.df.loc[:, 'code_tokens'] = self.df.loc[:, 'code'].copy().map(get_code_tokens)\
+            .map(lambda x: list(map(str.lower, x)))
 
         self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring, min_tokens_code,  max_tokens_code)
         if remove_duplicates:
