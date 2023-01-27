@@ -102,7 +102,7 @@ class Architecture:
 
 
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, batch_size, bidirectional=const.BIDIRECTIONAL,
+    def __init__(self, input_size, hidden_size, batch_size, embedding, bidirectional=const.BIDIRECTIONAL,
                  layers=const.ENCODER_LAYERS, lstm_dropout=const.LSTM_ENCODER_DROPOUT, device=const.DEVICE):
         super(EncoderRNN, self).__init__()
         self.input_size = input_size
@@ -113,7 +113,8 @@ class EncoderRNN(nn.Module):
         self.lstm_dropout = lstm_dropout
         self.device = device
 
-        self.embedding = nn.Embedding(self.input_size, self.hidden_size, device=self.device)
+        self.embedding = embedding
+
         self.lstm = nn.LSTM(hidden_size, hidden_size, self.layers, bidirectional=(self.bidirectional == 2),
                             dropout=self.lstm_dropout, batch_first=True, device=self.device)
 
@@ -145,7 +146,7 @@ class EncoderRNN(nn.Module):
 
 
 class DecoderRNN(nn.Module):
-    def __init__(self, hidden_size, output_size, batch_size, bidirectional=const.BIDIRECTIONAL,
+    def __init__(self, hidden_size, output_size, batch_size, embedding, bidirectional=const.BIDIRECTIONAL,
                  layers=const.DECODER_LAYERS, lstm_dropout=const.LSTM_DECODER_DROPOUT, device=const.DEVICE):
         super(DecoderRNN, self).__init__()
         self.hidden_size = hidden_size
@@ -156,7 +157,8 @@ class DecoderRNN(nn.Module):
         self.lstm_dropout = lstm_dropout
         self.device = device
 
-        self.embedding = nn.Embedding(self.output_size, self.hidden_size, device=self.device)
+        self.embedding = embedding
+
         self.lstm = nn.LSTM(self.hidden_size, self.hidden_size, self.layers, bidirectional=(self.bidirectional == 2),
                             dropout=self.lstm_dropout, batch_first=True, device=self.device)
         self.out = nn.Linear(self.bidirectional * self.hidden_size, self.output_size, device=self.device)
@@ -187,10 +189,11 @@ class DecoderRNN(nn.Module):
 
 
 class DecoderRNNWrapped(nn.Module):
-    def __init__(self, hidden_size, output_size, batch_size, bidirectional=const.BIDIRECTIONAL,
+    def __init__(self, hidden_size, output_size, batch_size, embedding, bidirectional=const.BIDIRECTIONAL,
                  layers=const.DECODER_LAYERS, lstm_dropout=const.LSTM_DECODER_DROPOUT, device=const.DEVICE):
         super(DecoderRNNWrapped, self).__init__()
-        self.decoder = DecoderRNN(hidden_size, output_size, batch_size, bidirectional, layers, lstm_dropout, device)
+        self.decoder = DecoderRNN(hidden_size, output_size, batch_size, embedding, bidirectional, layers, lstm_dropout,
+                                  device)
 
     def forward(self, encoder_hidden, target_length):
         decoder_input = torch.tensor([[const.SOS_TOKEN]] * self.decoder.batch_size, device=self.decoder.device)
@@ -213,9 +216,9 @@ class DecoderRNNWrapped(nn.Module):
 
 
 class EncoderBOW(nn.Module):
-    def __init__(self, vocab_size, embedding_size, dropout):
+    def __init__(self, embedding, dropout):
         super(EncoderBOW, self).__init__()
-        self.embedding = nn.Embedding(vocab_size, embedding_size)
+        self.embedding = embedding
         self.dropout = dropout
 
     def forward(self, input):
@@ -230,7 +233,9 @@ class DocEncoder(nn.Module):
     def __init__(self, input_size, hidden_size, batch_size, bidirectional=const.BIDIRECTIONAL,
                  layers=const.ENCODER_LAYERS, lstm_dropout=const.LSTM_ENCODER_DROPOUT, device=const.DEVICE):
         super(DocEncoder, self).__init__()
-        self.encoder = EncoderRNN(input_size, hidden_size, batch_size, bidirectional, layers, lstm_dropout, device)
+        self.embedding = nn.Embedding(input_size, hidden_size, padding_idx=const.PAD_TOKEN, device=device)
+        self.encoder = EncoderRNN(input_size, hidden_size, batch_size, self.embedding,
+                                  bidirectional, layers, lstm_dropout, device)
 
     def forward(self, *args, **kwargs):
         return self.encoder(*args, **kwargs)
@@ -242,11 +247,12 @@ class CodeEncoder(nn.Module):
                  lstm_layers=const.ENCODER_LAYERS, lstm_dropout=const.LSTM_ENCODER_DROPOUT, dropout=const.DROPOUT,
                  device=const.DEVICE):
         super(CodeEncoder, self).__init__()
-        self.seq_encoder = EncoderRNN(code_vocab_size, hidden_size, batch_size, bidirectional, lstm_layers,
-                                      lstm_dropout, device)
-        self.methode_name_encoder = EncoderRNN(code_vocab_size, hidden_size, batch_size, bidirectional, lstm_layers,
-                                               lstm_dropout, device)
-        self.token_encoder = EncoderBOW(code_vocab_size, hidden_size, dropout)
+        self.embedding = nn.Embedding(code_vocab_size, hidden_size, padding_idx=const.PAD_TOKEN, device=device)
+        self.seq_encoder = EncoderRNN(code_vocab_size, hidden_size, batch_size, self.embedding,
+                                      bidirectional, lstm_layers, lstm_dropout, device)
+        self.methode_name_encoder = EncoderRNN(code_vocab_size, hidden_size, batch_size, self.embedding,
+                                               bidirectional, lstm_layers, lstm_dropout, device)
+        self.token_encoder = EncoderBOW(self.embedding, dropout)
 
         n = hidden_size
         self.w_seq = nn.Linear(n, n)
@@ -268,8 +274,10 @@ class DocDecoder(nn.Module):
     def __init__(self, hidden_size, output_size, batch_size, bidirectional=const.BIDIRECTIONAL,
                  lstm_layers=const.DECODER_LAYERS, lstm_dropout=const.LSTM_DECODER_DROPOUT, device=const.DEVICE):
         super(DocDecoder, self).__init__()
+        self.embedding = nn.Embedding(output_size, hidden_size, padding_idx=const.PAD_TOKEN, device=device)
         self.decoder = \
-            DecoderRNNWrapped(hidden_size, output_size, batch_size, bidirectional, lstm_layers, lstm_dropout, device)
+            DecoderRNNWrapped(hidden_size, output_size, batch_size, self.embedding,
+                              bidirectional, lstm_layers, lstm_dropout, device)
 
     def forward(self, *args, **kwargs):
         return self.decoder(*args, **kwargs)
@@ -279,8 +287,10 @@ class CodeDecoder(nn.Module):
     def __init__(self, hidden_size, output_size, batch_size, bidirectional=const.BIDIRECTIONAL,
                  lstm_layers=const.DECODER_LAYERS, lstm_dropout=const.LSTM_DECODER_DROPOUT, device=const.DEVICE):
         super(CodeDecoder, self).__init__()
+        self.embedding = nn.Embedding(output_size, hidden_size, padding_idx=const.PAD_TOKEN, device=device)
         self.decoder = \
-            DecoderRNNWrapped(hidden_size, output_size, batch_size, bidirectional, lstm_layers, lstm_dropout, device)
+            DecoderRNNWrapped(hidden_size, output_size, batch_size, self.embedding,
+                              bidirectional, lstm_layers, lstm_dropout, device)
 
     def forward(self, *args, **kwargs):
         return self.decoder(*args, **kwargs)
