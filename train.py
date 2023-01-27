@@ -352,7 +352,7 @@ def go_train(rank, world_size, arch_mode, module, experiment_name, port, train_d
     arch = model.Architecture(arch_mode)
 
     experiment = Experiment(experiment_name)
-    experiment.log_initial_params(world_size, arch, len(train_data), len(valid_data),
+    experiment.log_initial_params(world_size, arch_mode, len(train_data), len(valid_data),
                                   train_data.doc_lang.n_words, train_data.code_lang.n_words)
 
     trainer = Trainer(arch, module, (train_data, valid_data, test_data), config, experiment)
