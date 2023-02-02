@@ -126,10 +126,10 @@ class EncoderRNN(nn.Module):
     def forward(self, input, lengths=None):
         hidden = self.init_hidden()
         embedded = self.embedding(input)
-        if lengths:
+        if lengths is not None:
             embedded = pack_padded_sequence(embedded, lengths, batch_first=True, enforce_sorted=False)
         output, hidden = self.lstm(embedded, hidden)
-        if lengths:
+        if lengths is not None:
             output, _ = pad_packed_sequence(output, batch_first=True, padding_value=const.PAD_TOKEN)
         return output, hidden
 
