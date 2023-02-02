@@ -147,17 +147,18 @@ def transform_code_sequence(s):
     s = re.sub(r'""".*"""', const.TEXT_TOKEN, s)
     s = re.sub(r'".*"', const.TEXT_TOKEN, s)
     s = re.sub(r'\'.*\'', const.CHAR_TOKEN, s)
-    s = list(filter(None, s.split(' ')))
+    s = list(elem.lower() for elem in filter(None, s.split(' ')))
     return s
 
 
 def get_code_methode_name(s):
     s = normalize_code(s)
-
     tokens = list(javalang.tokenizer.tokenize(s))
-    return next((split_subtokens(elem.value) for i, elem in enumerate(tokens)
-                 if isinstance(elem, javalang.tokenizer.Identifier) and i < len(tokens) and tokens[i + 1].value == '('),
-                [])
+
+    return list(elem.lower() for elem in
+                itertools.chain.from_iterable(split_subtokens(elem.value) for i, elem in enumerate(tokens))
+                if elem != '.')
+
 
 
 def get_code_tokens(s):
@@ -172,5 +173,6 @@ def get_code_tokens(s):
 
     tokens = list(javalang.tokenizer.tokenize(s))
 
-    return list(itertools.chain.from_iterable(split_subtokens(tok.value) for tok in tokens
-                                              if not any(map(lambda c: isinstance(tok, c), remove))))
+    return list(elem.lower() for elem in
+                itertools.chain.from_iterable(split_subtokens(tok.value)
+                                              for tok in tokens if not any(map(lambda c: isinstance(tok, c), remove))))
