@@ -43,6 +43,11 @@ class Lang:
     def indexes_from_sequence(self, seq, oov_token=const.OOV_TOKEN):
         return [self.word2index[word] if word in self.word2index else oov_token for word in seq]
 
+    def list_from_sequence(self, seq, oov_token=const.OOV_TOKEN):
+        indexes = self.indexes_from_sequence(seq, oov_token)
+        indexes.append(const.EOS_TOKEN)
+        return indexes
+
     def tensor_from_sequence(self, seq, oov_token=const.OOV_TOKEN):
         indexes = self.indexes_from_sequence(seq, oov_token)
         indexes.append(const.EOS_TOKEN)

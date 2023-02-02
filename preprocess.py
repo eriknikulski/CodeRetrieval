@@ -22,24 +22,20 @@ def run(args):
     remove_duplicates = not args.keep_duplicates
 
     train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/',
-                                    build_language=False, remove_duplicates=remove_duplicates, to_tensors=False,
-                                    sort=False,)
+                                    build_language=False, remove_duplicates=remove_duplicates, to_tensors=False)
     test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/',
-                                   build_language=False, remove_duplicates=remove_duplicates, to_tensors=False,
-                                   sort=False)
+                                   build_language=False, remove_duplicates=remove_duplicates, to_tensors=False)
     valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/',
-                                    build_language=False, remove_duplicates=remove_duplicates, to_tensors=False,
-                                    sort=False)
+                                    build_language=False, remove_duplicates=remove_duplicates, to_tensors=False)
 
     print('Creating training files...')
-    with open(const.PREPROCESS_BPE_TRAIN_PATH_DOC, 'w', encoding='utf-8') as train_file:
+    with open(const.PREPROCESS_BPE_TRAIN_PATH, 'w', encoding='utf-8') as train_file:
         for text in train_data.df['docstring_tokens']:
             train_file.write(f'{" ".join(text)}\n')
         for text in test_data.df['docstring_tokens']:
             train_file.write(f'{" ".join(text)}\n')
         for text in valid_data.df['docstring_tokens']:
             train_file.write(f'{" ".join(text)}\n')
-    with open(const.PREPROCESS_BPE_TRAIN_PATH_CODE, 'w', encoding='utf-8') as train_file:
         for text in train_data.df['code_sequence']:
             train_file.write(f'{" ".join(text)}\n')
         for text in test_data.df['code_sequence']:
@@ -49,60 +45,43 @@ def run(args):
 
     if const.PREPROCESS_USE_BPE:
         print('Creating codes files...')
-        with open(const.PREPROCESS_BPE_TRAIN_PATH_DOC, encoding='utf-8') as train_file, \
-                open(const.PREPROCESS_BPE_CODES_PATH_DOC, 'w', encoding='utf-8') as codes_file:
+        with open(const.PREPROCESS_BPE_TRAIN_PATH, encoding='utf-8') as train_file, \
+                open(const.PREPROCESS_BPE_CODES_PATH, 'w', encoding='utf-8') as codes_file:
             subword_nmt.learn_bpe(train_file, codes_file, const.PREPROCESS_VOCAB_SIZE_DOC)
-        with open(const.PREPROCESS_BPE_TRAIN_PATH_CODE, encoding='utf-8') as train_file, \
-                open(const.PREPROCESS_BPE_CODES_PATH_CODE, 'w', encoding='utf-8') as codes_file:
-            subword_nmt.learn_bpe(train_file, codes_file, const.PREPROCESS_VOCAB_SIZE_CODE)
 
         print('Creating vocab files...')
-        with open(const.PREPROCESS_BPE_TRAIN_PATH_DOC, encoding='utf-8') as train_file, \
-                open(const.PREPROCESS_BPE_VOCAB_PATH_DOC, 'w', encoding='utf-8') as vocab_file:
-            subword_nmt.get_vocab(train_file, vocab_file)
-        with open(const.PREPROCESS_BPE_TRAIN_PATH_CODE, encoding='utf-8') as train_file, \
-                open(const.PREPROCESS_BPE_VOCAB_PATH_CODE, 'w', encoding='utf-8') as vocab_file:
+        with open(const.PREPROCESS_BPE_TRAIN_PATH, encoding='utf-8') as train_file, \
+                open(const.PREPROCESS_BPE_VOCAB_PATH, 'w', encoding='utf-8') as vocab_file:
             subword_nmt.get_vocab(train_file, vocab_file)
 
         print('Applying codes...')
-        with open(const.PREPROCESS_BPE_CODES_PATH_DOC, encoding='utf-8') as codes_file, \
-                open(const.PREPROCESS_BPE_VOCAB_PATH_DOC, encoding='utf-8') as vocab_file:
+        with open(const.PREPROCESS_BPE_CODES_PATH, encoding='utf-8') as codes_file, \
+                open(const.PREPROCESS_BPE_VOCAB_PATH, encoding='utf-8') as vocab_file:
             vocab = subword_nmt.read_vocabulary(vocab_file, const.PREPROCESS_VOCAB_FREQ_THRESHOLD)
             bpe = subword_nmt.BPE(codes_file, vocab=vocab)
             train_data.df[['docstring_tokens']] = train_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
             test_data.df[['docstring_tokens']] = test_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
             valid_data.df[['docstring_tokens']] = valid_data.df[['docstring_tokens']].applymap(bpe.segment_tokens)
-        with open(const.PREPROCESS_BPE_CODES_PATH_CODE, encoding='utf-8') as codes_file, \
-                open(const.PREPROCESS_BPE_VOCAB_PATH_CODE, encoding='utf-8') as vocab_file:
-            vocab = subword_nmt.read_vocabulary(vocab_file, const.PREPROCESS_VOCAB_FREQ_THRESHOLD)
-            bpe = subword_nmt.BPE(codes_file, vocab=vocab)
             train_data.df[['code_sequence']] = train_data.df[['code_sequence']].applymap(bpe.segment_tokens)
             test_data.df[['code_sequence']] = test_data.df[['code_sequence']].applymap(bpe.segment_tokens)
             valid_data.df[['code_sequence']] = valid_data.df[['code_sequence']].applymap(bpe.segment_tokens)
 
     print('Building languages...')
-    doc_lang = data.Lang('doc')
-    code_lang = data.Lang('code')
-    train_data.build_language(languages=[doc_lang, code_lang])
-    test_data.build_language(languages=[doc_lang, code_lang])
-    valid_data.build_language(languages=[doc_lang, code_lang])
+    lang = data.Lang('lang')
+    train_data.build_language(language=lang)
+    test_data.build_language(language=lang)
+    valid_data.build_language(language=lang)
 
     print('Converting to tensors...')
     train_data.to_tensors()
     test_data.to_tensors()
     valid_data.to_tensors()
 
-    if not const.SHUFFLE_DATA:
-        train_data.sort()
-        test_data.sort()
-        valid_data.sort()
-
     print('Saving...')
     pickle.dump(train_data, open(const.DATA_TRAIN_PATH, 'wb'))
     pickle.dump(test_data, open(const.DATA_TEST_PATH, 'wb'))
     pickle.dump(valid_data, open(const.DATA_VALID_PATH, 'wb'))
-    pickle.dump(doc_lang, open(const.DATA_INPUT_LANG_PATH, 'wb'))
-    pickle.dump(code_lang, open(const.DATA_OUTPUT_LANG_PATH, 'wb'))
+    pickle.dump(lang, open(const.DATA_LANG_PATH, 'wb'))
 
 
 if __name__ == '__main__':

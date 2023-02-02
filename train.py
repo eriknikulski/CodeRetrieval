@@ -77,8 +77,8 @@ class Trainer:
 
         self.train_data, self.valid_data, self.test_data = data
 
-        self.doc_lang = self.train_data.doc_lang
-        self.code_lang = self.train_data.code_lang
+        self.doc_lang = self.train_data.lang
+        self.code_lang = self.train_data.lang
 
         self.model_type = model.ModelType.TRANSLATOR if isinstance(self.model, model.JointTranslator) \
             else model.JointEmbedder
@@ -183,12 +183,12 @@ class Trainer:
                 batch_data = self.batch_data_to_device(batch_data)
 
                 doc_inputs = batch_data[:2]
-                code_inputs = batch_data[2:7]
-                neg_doc_inputs = batch_data[7:9]
-                neg_code_inputs = batch_data[9:]
+                code_inputs = batch_data[2:8]
+                neg_doc_inputs = batch_data[8:10]
+                neg_code_inputs = batch_data[10:]
 
                 doc_seqs, doc_seq_lengths = doc_inputs
-                code_seqs, code_seq_lengths, methode_names, methode_name_lengths, code_tokens = code_inputs
+                code_seqs, code_seq_lengths, methode_names, methode_name_lengths, code_tokens, code_tokens_length = code_inputs
 
                 if mode == Mode.TRAIN:
                     self.optimizer.zero_grad(set_to_none=self.config['set_gradients_none'])
@@ -353,7 +353,7 @@ def go_train(rank, world_size, arch_mode, module, experiment_name, port, train_d
 
     experiment = Experiment(experiment_name)
     experiment.log_initial_params(world_size, arch_mode, len(train_data), len(valid_data),
-                                  train_data.doc_lang.n_words, train_data.code_lang.n_words)
+                                  train_data.lang.n_words, train_data.lang.n_words)
 
     trainer = Trainer(arch, module, (train_data, valid_data, test_data), config, experiment)
     trainer.train()
@@ -391,13 +391,12 @@ def run(args):
             test_data.sort()
             valid_data.sort()
     elif not args.last_data:
-        input_lang = data.Lang('doc')
-        output_lang = data.Lang('code')
-        train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', languages=[input_lang, output_lang],
+        lang = data.Lang('lang')
+        train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', languages=lang,
                                         remove_duplicates=remove_duplicates)
-        test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/', languages=[input_lang, output_lang],
+        test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/', languages=lang,
                                        remove_duplicates=remove_duplicates)
-        valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/', languages=[input_lang, output_lang],
+        valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/', languages=lang,
                                         remove_duplicates=remove_duplicates)
 
     if not args.last_data:
@@ -407,9 +406,9 @@ def run(args):
 
     if args.model == 'translator':
         arch = model.Architecture(arch_mode)
-        module = model.JointTranslator(arch, train_data.doc_lang.n_words, train_data.code_lang.n_words)
+        module = model.JointTranslator(arch, train_data.lang.n_words, train_data.lang.n_words)
     else:
-        module = model.JointEmbedder(train_data.doc_lang.n_words, train_data.code_lang.n_words)
+        module = model.JointEmbedder(train_data.lang.n_words, train_data.lang.n_words)
         const.LEARNING_RATE = 1.34e-4
 
     experiment_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(const.COMET_EXP_NAME_LENGTH))

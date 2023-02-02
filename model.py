@@ -261,7 +261,7 @@ class CodeEncoder(nn.Module):
 
         self.fusion = nn.Linear(n, n)
 
-    def forward(self, code_seqs, code_seq_lengths, methode_names, methode_name_length, code_tokens):
+    def forward(self, code_seqs, code_seq_lengths, methode_names, methode_name_length, code_tokens, code_tokens_length):
         _, (seq_embed, _) = self.seq_encoder(code_seqs, code_seq_lengths)                           # N x L1 x D*H
         _, (name_embed, _) = self.methode_name_encoder(methode_names, methode_name_length)          # N x L2 x D*H
         tok_embed = self.token_encoder(code_tokens)                                                 # N x L3 x D*H

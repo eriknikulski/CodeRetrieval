@@ -1,3 +1,7 @@
+import itertools
+
+import numpy as np
+import torch
 from dpu_utils.utils import RichPath
 from dpu_utils.codeutils.deduplication import DuplicateDetector
 import pandas as pd
@@ -6,6 +10,7 @@ from torch.utils.data import Dataset, DataLoader
 
 import const
 import data
+import pad_collate
 
 
 def remove_duplicate_code_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -26,7 +31,7 @@ def remove_duplicate_code_df(df: pd.DataFrame) -> pd.DataFrame:
 
     # filter the data
     print(f'Removed {sum(~(filter_mask & exclusion_mask)):,} fuzzy duplicates out of {df.shape[0]:,} rows.')
-    return df[filter_mask & exclusion_mask]
+    return df[filter_mask & exclusion_mask].drop('doc_id', axis=1)
 
 
 def read_folder(folder: RichPath):
@@ -44,40 +49,35 @@ class CodeDataset(Dataset):
     def __init__(self, path, transform=data.normalize_docstring, target_transform=data.transform_code_sequence,
                  get_methode_name=data.get_code_methode_name, get_code_tokens=data.get_code_tokens,
                  min_tokens_docstring=const.MIN_LENGTH_DOCSTRING, max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
-                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE, languages=None,
-                 build_language=True, to_tensors=True, remove_duplicates=True, sort=False, create_negatives=True):
+                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE, language=None,
+                 build_language=True, to_tensors=True, remove_duplicates=True, create_negatives=True):
         self.path = path
-        self.doc_lang = None
-        self.code_lang = None
         self.negatives = create_negatives
-        if languages:
-            self.set_languages(languages)
-        self.working_items = ['docstring_tokens', 'docstring_tokens_length', 'code_sequence', 'code_sequence_length',
-                              'methode_name', 'methode_name_length', 'code_tokens']
+        self.use_negatives = create_negatives
+        self.lang = language
+        self.items = ['docstring_tokens', 'code_sequence', 'methode_name', 'code_tokens']
+        self.negative_items = []
+        self.len = 0
+
+        self.init_attributes(self.items)
 
         self.df = read_folder(RichPath.create(path))
-        self.df.loc[:, 'docstring_tokens'] = self.df.loc[:, 'docstring_tokens'].copy().map(transform)
-        self.df.loc[:, 'code_sequence'] = self.df.loc[:, 'code'].copy().map(target_transform)\
-            .map(lambda x: list(map(str.lower, x)))
 
-        self.df.loc[:, 'docstring_tokens_length'] = self.df.loc[:, 'docstring_tokens'].copy().map(len)
-        self.df.loc[:, 'code_sequence_length'] = self.df.loc[:, 'code_sequence'].copy().map(len)
+        self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
+        self.df[['code_sequence']] = self.df[['code']].applymap(target_transform)
+        self.df[['methode_name']] = self.df[['func_name']].applymap(get_methode_name)
+        self.df[['code_tokens']] = self.df[['code']].applymap(get_code_tokens)
 
-        self.df.loc[:, 'methode_name'] = self.df.loc[:, 'code'].copy().map(get_methode_name)\
-            .map(lambda x: list(map(str.lower, x)))
-
-        self.df.loc[:, 'methode_name_length'] = self.df.loc[:, 'methode_name'].copy().map(len)
-
-        self.df.loc[:, 'code_tokens'] = self.df.loc[:, 'code'].copy().map(get_code_tokens)\
-            .map(lambda x: list(map(str.lower, x)))
-
-        self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring, min_tokens_code,  max_tokens_code)
+        # Note: -1 because an EOS token is appended to the sequence later
+        self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring - 1,
+                                        min_tokens_code,  max_tokens_code - 1)
         if remove_duplicates:
             self.remove_duplicates()
 
         self.df.reset_index(drop=True, inplace=True)
+        self.len = len(self.df)
 
-        if self.create_negatives:
+        if self.negatives:
             self.create_negatives()
 
         if build_language:
@@ -86,138 +86,141 @@ class CodeDataset(Dataset):
         if to_tensors:
             self.to_tensors()
 
-        if sort:
-            self.sort()
-
         print(f'{self.__len__()} elements loaded!\n')
 
     def __len__(self):
-        return len(self.df)
+        return self.len
 
     def __getitem__(self, idx):
-        """
-        :param idx:
-        :return: doc, doc_length, code_sequence, code_sequence_length, methode_name, methode_name_length,
-                 code_tokens, url
-        """
-        return self.df[idx]
+        working_items = self.items
+        if self.use_negatives:
+            working_items +=  self.negative_items
+        items = list(itertools.chain.from_iterable(zip(working_items, [elem + '_length' for elem in working_items])))
+        return tuple(getattr(self, item)[idx] for item in items)
 
-    def get_langs(self):
-        return self.doc_lang, self.code_lang
+    def init_attributes(self, attr_list):
+        for attr in attr_list:
+            setattr(self, attr, None)
 
     def remove_duplicates(self):
         self.df = remove_duplicate_code_df(self.df)
-        self.df.drop('doc_id', axis=1, inplace=True)
 
     def create_negatives(self):
-        self.working_items += ['neg_' + item for item in self.working_items]
+        self.negative_items =  ['neg_' + item for item in self.items]
+        self.init_attributes(self.negative_items)
 
-        self.df.loc[:, 'neg_docstring_tokens'] = self.df.loc[:, 'docstring_tokens'].copy().sample(frac=1).reset_index(drop=True)
-        self.df.loc[:, 'neg_docstring_tokens_length'] = self.df.loc[:, 'neg_docstring_tokens'].copy().map(len)
-
-        self.df.loc[:, 'neg_code_sequence'] = self.df.loc[:, 'code_sequence'].copy().sample(frac=1).reset_index(drop=True)
-        self.df.loc[:, 'neg_code_sequence_length'] = self.df.loc[:, 'neg_code_sequence'].copy().map(len)
-
-        self.df.loc[:, 'neg_methode_name'] = self.df.loc[:, 'methode_name'].copy().sample(frac=1).reset_index(drop=True)
-        self.df.loc[:, 'neg_methode_name_length'] = self.df.loc[:, 'neg_methode_name'].copy().map(len)
-
-        self.df.loc[:, 'neg_code_tokens'] = self.df.loc[:, 'code_tokens'].copy().sample(frac=1).reset_index(drop=True)
-
-    def build_language(self, languages=None):
-        print('building language dictionaries')
-        if languages:
-            self.set_languages(languages)
+        if self.df is not None:
+            for item, neg_item in zip(self.items, self.negative_items):
+                self.df[[neg_item]] = self.df[[item]].sample(frac=1).reset_index(drop=True)
         else:
-            self.doc_lang = data.Lang('doc')
-            self.code_lang = data.Lang('code')
+            for item, neg_item in zip(self.items, self.negative_items):
+                tensor = getattr(self, item)
+                rand_perm = torch.randperm(tensor.size(0))
+                setattr(self, neg_item, tensor[rand_perm])
+                setattr(self, neg_item + '_length', getattr(self, item + '_length')[rand_perm])
 
-        # TODO: implement this correctly
-        self.df.loc[:, 'docstring_tokens'].map(self.doc_lang.add_sequence)
-        self.df.loc[:, 'code_sequence'].map(self.doc_lang.add_sequence)
+    def recreate_negatives(self):
+        for k, v in vars(self).items():
+            if k.startswith('neg_'):
+                setattr(self, k, None)
+        self.create_negatives()
 
-        self.doc_lang.reduce_vocab(max_tokens=2 * const.PREPROCESS_VOCAB_SIZE_CODE)
-        # self.code_lang.reduce_vocab(max_tokens=const.PREPROCESS_VOCAB_SIZE_CODE)
-        self.code_lang = self.doc_lang
+    def build_language(self, language=None):
+        print('building language dictionaries')
+        self.lang = language if language else data.Lang('lang')
 
-    def set_languages(self, languages):
-        self.doc_lang = languages[0]
-        self.code_lang = languages[1]
+        self.df[['docstring_tokens']].applymap(self.lang.add_sequence)
+        self.df[['code_sequence']].applymap(self.lang.add_sequence)
+
+        self.lang.reduce_vocab(max_tokens=const.PREPROCESS_VOCAB_SIZE)
 
     def to_tensors(self):
-        assert self.doc_lang and self.code_lang
+        assert self.lang
         print('converting sequences to tensors')
-        self.df.loc[:, 'docstring_tokens'] = self.df.loc[:, 'docstring_tokens'].map(self.doc_lang.tensor_from_sequence)
-        self.df.loc[:, 'code_sequence'] = self.df.loc[:, 'code_sequence'].map(self.code_lang.tensor_from_sequence)
-        self.df.loc[:, 'code_tokens'] = self.df.loc[:, 'code_tokens'].map(self.code_lang.tensor_from_sequence)
-        self.df.loc[:, 'methode_name'] = self.df.loc[:, 'methode_name'].map(self.code_lang.tensor_from_sequence)
-        if self.negatives:
-            self.df.loc[:, 'neg_docstring_tokens'] = self.df.loc[:, 'neg_docstring_tokens'].map(self.doc_lang.tensor_from_sequence)
-            self.df.loc[:, 'neg_code_sequence'] = self.df.loc[:, 'neg_code_sequence'].map(self.code_lang.tensor_from_sequence)
-            self.df.loc[:, 'neg_code_tokens'] = self.df.loc[:, 'neg_code_tokens'].map(self.code_lang.tensor_from_sequence)
-            self.df.loc[:, 'neg_methode_name'] = self.df.loc[:, 'neg_methode_name'].map(self.code_lang.tensor_from_sequence)
 
-        self.df.loc[:, 'docstring_tokens_length'] = self.df.loc[:, 'docstring_tokens'].copy().map(len)
-        self.df.loc[:, 'code_sequence_length'] = self.df.loc[:, 'code_sequence'].copy().map(len)
-        self.df.loc[:, 'methode_name_length'] = self.df.loc[:, 'methode_name'].copy().map(len)
-        if self.negatives:
-            self.df.loc[:, 'neg_docstring_tokens_length'] = self.df.loc[:, 'neg_docstring_tokens'].copy().map(len)
-            self.df.loc[:, 'neg_code_sequence_length'] = self.df.loc[:, 'neg_code_sequence'].copy().map(len)
-            self.df.loc[:, 'neg_methode_name_length'] = self.df.loc[:, 'neg_methode_name'].copy().map(len)
+        for item in self.items + self.negative_items:
+            self.df[[item]] = self.df[[item]].applymap(self.lang.list_from_sequence)
 
-        self.to_list()
+        self.set_lengths()
 
-    def to_list(self):
-        print('convert dataframe to numpy')
-        self.df = self.df.to_numpy().tolist()
+        for attr in self.items + self.negative_items:
+            max_length = getattr(self, attr + '_length').max()
+            setattr(self, attr, torch.tensor(np.array([np.pad(row, (0, max_length - len(row)),
+                                                              constant_values=const.PAD_TOKEN)
+                                                       for row in self.df[attr]]), dtype=torch.long))
+        self.df = None
+
+    def set_lengths(self):
+        items = self.items + self.negative_items
+        lengths = [elem + '_length' for elem in items]
+
+        for elem, elem_l in zip(items, lengths):
+            setattr(self, elem_l, torch.tensor(self.df[[elem]].applymap(len).to_numpy().flatten()))
+
 
     def enforce_length_constraints(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
                                    max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
                                    min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE):
-        if isinstance(self.df, pd.DataFrame):
+        if self.df is not None:
             self._enforce_length_constraints_df(min_tokens_docstring, max_tokens_docstring,
                                                 min_tokens_code, max_tokens_code)
         else:
-            self._enforce_length_constraints_list(min_tokens_docstring, max_tokens_docstring,
+            self._enforce_length_constraints_attr(min_tokens_docstring, max_tokens_docstring,
                                                   min_tokens_code, max_tokens_code)
+            if self.negatives:
+                self.recreate_negatives()
 
     def _enforce_length_constraints_df(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
                                        max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
                                        min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE):
-        self.df = self.df.loc[:, self.working_items][
-            (self.df.loc[:, 'docstring_tokens'].map(len) <= max_tokens_docstring) &
-            (self.df.loc[:, 'docstring_tokens'].map(len) >= min_tokens_docstring)]
-        self.df = self.df.loc[:, self.working_items][
-            (self.df.loc[:, 'code_sequence'].map(len) <= max_tokens_code) &
-            (self.df.loc[:, 'code_sequence'].map(len) >= min_tokens_code)]
+        self.df = self.df[self.items][
+            (self.df['docstring_tokens'].map(len) <= max_tokens_docstring) &
+            (self.df['docstring_tokens'].map(len) >= min_tokens_docstring)]
+        self.df = self.df[self.items][
+            (self.df['code_sequence'].map(len) <= max_tokens_code) &
+            (self.df['code_sequence'].map(len) >= min_tokens_code)]
+        self.len = len(self.df)
 
-    def _enforce_length_constraints_list(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
+    def _enforce_length_constraints_attr(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
                                          max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
                                          min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE):
-        doc_idx = self.working_items.index('docstring_tokens')
-        code_idx = self.working_items.index('code_sequence')
+        doc_size = self.docstring_tokens.size(1)
+        summed = (self.docstring_tokens == const.PAD_TOKEN).sum(axis=1)
+        doc_mask = (min_tokens_docstring <= doc_size - summed) & (doc_size - summed <= max_tokens_docstring)
 
-        self.df = [elems for elems in self.df if
-                   min_tokens_docstring <= len(elems[doc_idx]) <= max_tokens_docstring and
-                   min_tokens_code <= len(elems[code_idx]) <= max_tokens_code]
+        code_size = self.code_sequence.size(1)
+        summed = (self.code_sequence == const.PAD_TOKEN).sum(axis=1)
+        code_mask = (min_tokens_code <= code_size - summed) & (code_size - summed <= max_tokens_code)
 
-    def sort(self):
-        if isinstance(self.df, pd.DataFrame):
-            self.df.sort_values(by=['code_sequence', 'docstring_tokens'], key=lambda x: x.apply(len), inplace=True)
-        else:
-            code_idx = self.working_items.index('code_sequence')
-            self.df.sort(key=lambda x: len(x[code_idx]))
+        mask = doc_mask & code_mask
+        for attr in self.items + [attr + '_length' for attr in self.items]:
+            setattr(self, attr, getattr(self, attr)[mask])
+
+        self.docstring_tokens = self.docstring_tokens[::, :max_tokens_docstring]
+        self.code_sequence = self.code_sequence[::, :max_tokens_code]
+        self.methode_name = self.methode_name[::, :max_tokens_code]
+        self.code_tokens = self.code_tokens[::, :max_tokens_code]
+
+        self.len = self.docstring_tokens.size(0)
 
 
 if __name__ == "__main__":
-    input_lang = data.Lang('docstring')
-    output_lang = data.Lang('code')
-    test_data = CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/', languages=[input_lang, output_lang])
-    test_dataloader = DataLoader(test_data, batch_size=1, shuffle=True)
+    lang = data.Lang('lang')
+    test_data = CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/',
+                            remove_duplicates=False, language=lang, create_negatives=True)
+    test_data.enforce_length_constraints(max_tokens_code=80)
+    test_data.use_negatives = False
+    test_dataloader = DataLoader(test_data, batch_size=4, shuffle=True, collate_fn=pad_collate.collate)
 
-    doc_seq, doc_seq_length, code_seq, code_seq_length, methode_name, methode_name_length, code_tokens = \
+    doc_seq, doc_seq_length, code_seq, code_seq_length, methode_name, methode_name_length, code_tokens, code_tokens_length = \
         next(iter(test_dataloader))
 
     print(doc_seq)
     print(doc_seq_length)
+
     print(code_seq)
     print(code_seq_length)
+    print(methode_name)
+    print(methode_name_length)
+    print(code_tokens)
+    print(code_tokens_length)
