@@ -2,6 +2,7 @@ import hashlib
 import os
 
 import comet_ml
+import torch
 
 import const
 import ddp
@@ -58,6 +59,14 @@ class Experiment:
                     self.experiment.log_metric(f'{i}_grad_norm', grad_norm, step=step, epoch=epoch)
             if text:
                 self.experiment.log_text(text, step=epoch)
+
+    def log_acc_std_mean(self, mode, batch_accuracies: list[torch.tensor], epoch):
+        if ddp.is_main_process():
+            std, mean = torch.std_mean(torch.stack(batch_accuracies), dim=0)
+            for i in range(len(std)):
+                self.experiment.log_metric(f'{mode}_{i}_acc_std', float(std[i]), epoch=epoch)
+            for i in range(len(mean)):
+                self.experiment.log_metric(f'{mode}_{i}_acc_mean', float(mean[i]), epoch=epoch)
 
 
 def generate_text_seq(input_lang, output_langs, inputs, results, step):

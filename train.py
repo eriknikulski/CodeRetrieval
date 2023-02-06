@@ -174,6 +174,7 @@ class Trainer:
         epoch_loss = torch.zeros(1, device=self.config['device'])
         epoch_accuracies = torch.zeros(self.arch.n_decoders, device=self.config['device'])
         batch_accuracies = torch.zeros(self.arch.n_decoders, device=self.config['device'])
+        batch_accuracies_list = []
         outputs_seqs = None
         encoder_id = None
         encoder_inputs = None
@@ -227,6 +228,7 @@ class Trainer:
                     if self.model_type == model.ModelType.TRANSLATOR:
                         batch_accuracies = self.get_accuracies(outputs_seqs, doc_seqs, code_seqs)
                         epoch_accuracies += batch_accuracies
+                        batch_accuracies_list.append(batch_accuracies)
 
                     if self.experiment and mode == Mode.TRAIN:
                         # TODO: rework gradients
@@ -248,6 +250,7 @@ class Trainer:
                                                                outputs_seqs, epoch)
                     self.experiment.log_metrics(mode.value, epoch_loss, epoch_accuracies, text=translations,
                                                 epoch=epoch)
+                    self.experiment.log_acc_std_mean(mode.value, batch_accuracies_list, epoch=epoch)
 
         return epoch_loss, torch.mean(epoch_accuracies)
 
