@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from enum import Enum
 
 import comet_ml
+import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -63,6 +64,12 @@ def print_time(prefix=''):
             return res
         return inner
     return wrapper
+
+
+def seed():
+    torch.manual_seed(0)
+    random.seed(0)
+    np.random.seed(0)
 
 
 class Trainer:
@@ -425,5 +432,6 @@ def run(args):
 
 
 if __name__ == '__main__':
+    seed()
     args = parser.parse_args()
     run(args)
