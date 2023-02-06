@@ -399,11 +399,11 @@ def run(args):
             valid_data.sort()
     elif not args.last_data:
         lang = data.Lang('lang')
-        train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', languages=lang,
+        train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', language=lang,
                                         remove_duplicates=remove_duplicates)
-        test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/', languages=lang,
+        test_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'test/', language=lang,
                                        remove_duplicates=remove_duplicates)
-        valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/', languages=lang,
+        valid_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'valid/', language=lang,
                                         remove_duplicates=remove_duplicates)
 
     if not args.last_data:
