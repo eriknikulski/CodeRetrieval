@@ -127,7 +127,7 @@ class Trainer:
                                                    gamma=self.config['lr_gamma'])
 
     def batch_data_to_device(self, batch):
-        return tuple(elem.to(self.device, non_blocking=True) if torch.is_tensor(elem) else elem for elem in batch)
+        return tuple(elem.to(self.device, non_blocking=True) if elem.dim() > 1 else elem.tolist() for elem in batch)
 
     def get_correct(self, results, targets):
         targets_mask = targets != const.PAD_TOKEN
