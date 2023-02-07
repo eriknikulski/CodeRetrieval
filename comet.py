@@ -6,7 +6,6 @@ import torch
 
 import const
 import ddp
-import keys
 
 
 class Experiment:
