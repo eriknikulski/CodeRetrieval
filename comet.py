@@ -17,7 +17,6 @@ class Experiment:
 
         if ddp.is_main_process():
             self.experiment = comet_ml.Experiment(
-                api_key=keys.COMET_API_KEY,
                 project_name=const.COMET_PROJECT_NAME,
                 workspace=const.COMET_WORKSPACE,)
 
@@ -25,7 +24,6 @@ class Experiment:
 
         if not self.experiment:
             self.experiment = comet_ml.ExistingExperiment(
-                api_key=keys.COMET_API_KEY,
                 project_name=const.COMET_PROJECT_NAME,
                 workspace=const.COMET_WORKSPACE,)
 
