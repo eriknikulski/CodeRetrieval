@@ -93,6 +93,7 @@ MAX_LENGTH_DOCSTRING = 25
 MIN_LENGTH_CODE = 20
 MAX_LENGTH_CODE = 100
 
+SIMPLE_CODE_ENCODER = False
 ENCODER_LAYERS = 2
 DECODER_LAYERS = 2
 BIDIRECTIONAL = 2
@@ -145,6 +146,7 @@ def get_hyperparams(params=None):
         'data   min_length_code': MIN_LENGTH_CODE,
         'data   max_length_code': MAX_LENGTH_CODE,
 
+        'model   simple_code_encoder': SIMPLE_CODE_ENCODER,
         'model   encoder_layers': ENCODER_LAYERS,
         'model   decoder_layers': DECODER_LAYERS,
         'model   bidirectional': BIDIRECTIONAL,

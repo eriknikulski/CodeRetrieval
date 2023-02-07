@@ -245,24 +245,28 @@ class CodeEncoder(nn.Module):
 
     def __init__(self, code_vocab_size, hidden_size, batch_size, bidirectional=const.BIDIRECTIONAL,
                  lstm_layers=const.ENCODER_LAYERS, lstm_dropout=const.LSTM_ENCODER_DROPOUT, dropout=const.DROPOUT,
-                 device=const.DEVICE):
+                 device=const.DEVICE, simple=False):
         super(CodeEncoder, self).__init__()
+        self.simple = simple
         self.embedding = nn.Embedding(code_vocab_size, hidden_size, padding_idx=const.PAD_TOKEN, device=device)
         self.seq_encoder = EncoderRNN(code_vocab_size, hidden_size, batch_size, self.embedding,
                                       bidirectional, lstm_layers, lstm_dropout, device)
-        self.methode_name_encoder = EncoderRNN(code_vocab_size, hidden_size, batch_size, self.embedding,
-                                               bidirectional, lstm_layers, lstm_dropout, device)
-        self.token_encoder = EncoderBOW(self.embedding, dropout)
+        if not self.simple:
+            self.methode_name_encoder = EncoderRNN(code_vocab_size, hidden_size, batch_size, self.embedding,
+                                                   bidirectional, lstm_layers, lstm_dropout, device)
+            self.token_encoder = EncoderBOW(self.embedding, dropout)
 
-        n = hidden_size
-        self.w_seq = nn.Linear(n, n)
-        self.w_name = nn.Linear(n, n)
-        self.w_tok = nn.Linear(n, n)
+            n = hidden_size
+            self.w_seq = nn.Linear(n, n)
+            self.w_name = nn.Linear(n, n)
+            self.w_tok = nn.Linear(n, n)
 
-        self.fusion = nn.Linear(n, n)
+            self.fusion = nn.Linear(n, n)
 
     def forward(self, code_seqs, code_seq_lengths, methode_names, methode_name_length, code_tokens, code_tokens_length):
         _, (seq_embed, _) = self.seq_encoder(code_seqs, code_seq_lengths)                           # N x L1 x D*H
+        if self.simple:
+            return None, (seq_embed, None)
         _, (name_embed, _) = self.methode_name_encoder(methode_names, methode_name_length)          # N x L2 x D*H
         tok_embed = self.token_encoder(code_tokens)                                                 # N x L3 x D*H
 
@@ -298,7 +302,7 @@ class CodeDecoder(nn.Module):
 
 class JointTranslator(nn.Module):
     def __init__(self, arch: Architecture, doc_lang_size, code_lang_size, hidden_size=const.HIDDEN_SIZE,
-                 batch_size=const.BATCH_SIZE):
+                 batch_size=const.BATCH_SIZE, simple=False):
         super(JointTranslator, self).__init__()
 
         self.enc_strs = []
@@ -310,7 +314,7 @@ class JointTranslator(nn.Module):
 
         self.encoders = nn.ModuleList(arch.get_encoders(
             DocEncoder(self.doc_lang_size, self.hidden_size, self.batch_size),
-            CodeEncoder(self.code_lang_size, self.hidden_size, self.batch_size)))
+            CodeEncoder(self.code_lang_size, self.hidden_size, self.batch_size, simple=simple)))
         self.decoders = nn.ModuleList(arch.get_decoders(
             DocDecoder(self.hidden_size, self.doc_lang_size, self.batch_size),
             CodeDecoder(self.hidden_size, self.code_lang_size, self.batch_size)))
@@ -330,7 +334,8 @@ class JointTranslator(nn.Module):
 
 
 class JointEmbedder(nn.Module):
-    def __init__(self, doc_lang_size, code_lang_size, hidden_size=const.HIDDEN_SIZE, batch_size=const.BATCH_SIZE):
+    def __init__(self, doc_lang_size, code_lang_size, hidden_size=const.HIDDEN_SIZE, batch_size=const.BATCH_SIZE,
+                 simple=False):
         super(JointEmbedder, self).__init__()
 
         self.enc_strs = []
@@ -341,7 +346,7 @@ class JointEmbedder(nn.Module):
         self.batch_size = batch_size
 
         self.doc_encoder = DocEncoder(self.doc_lang_size, self.hidden_size, self.batch_size)
-        self.code_encoder = CodeEncoder(self.code_lang_size, self.hidden_size, self.batch_size)
+        self.code_encoder = CodeEncoder(self.code_lang_size, self.hidden_size, self.batch_size, simple=simple)
 
     def forward(self, doc_inputs, code_inputs, neg_doc_inputs, neg_code_inputs):
         _, (doc_hidden, _) = self.doc_encoder(*doc_inputs)

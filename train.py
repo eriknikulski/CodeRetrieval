@@ -37,6 +37,7 @@ parser.add_argument('-lad', '--last-data', action='store_true', default=False, h
 parser.add_argument('-arch', '--architecture', choices=['normal', 'doc_doc', 'code_code', 'doc_code', 'code_doc'],
                     default='normal', help='The model architecture to be used for training.')
 parser.add_argument('-m', '--model', choices=['translator', 'embedder'], help='What model to use.')
+parser.add_argument('-sce', '--simple-code-encoder', action='store_true', default=False, help='Use simple Code Encoder')
 
 
 class Mode(Enum):
@@ -378,6 +379,7 @@ def run(args):
 
     remove_duplicates = not args.keep_duplicates
     arch_mode = model.Architecture.Mode(args.architecture)
+    const.SIMPLE_CODE_ENCODER = args.simple_code_encoder
 
     const.CUDA_DEVICE_COUNT = torch.cuda.device_count()
     if args.gpu and const.CUDA_DEVICE_COUNT < 1:
@@ -416,9 +418,10 @@ def run(args):
 
     if args.model == 'translator':
         arch = model.Architecture(arch_mode)
-        module = model.JointTranslator(arch, train_data.lang.n_words, train_data.lang.n_words)
+        module = model.JointTranslator(arch, train_data.lang.n_words, train_data.lang.n_words,
+                                       simple=const.SIMPLE_CODE_ENCODER)
     else:
-        module = model.JointEmbedder(train_data.lang.n_words, train_data.lang.n_words)
+        module = model.JointEmbedder(train_data.lang.n_words, train_data.lang.n_words, simple=const.SIMPLE_CODE_ENCODER)
         const.LEARNING_RATE = 1.34e-4
 
     experiment_name = ''.join(random.choice(string.ascii_lowercase) for _ in range(const.COMET_EXP_NAME_LENGTH))
