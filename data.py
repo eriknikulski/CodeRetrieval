@@ -161,7 +161,7 @@ def get_code_methode_name(s):
     tokens = list(javalang.tokenizer.tokenize(s))
 
     return list(elem.lower() for elem in
-                itertools.chain.from_iterable(split_subtokens(elem.value) for i, elem in enumerate(tokens))
+                itertools.chain.from_iterable(split_identifier_into_parts(elem.value) for i, elem in enumerate(tokens))
                 if elem != '.')
 
 
