@@ -110,10 +110,6 @@ BATCH_SIZE_VALID = 256
 BATCH_SIZE_TEST = 256
 LR_STEP_SIZE = 2000
 LR_GAMMA = 0.1
-GRADIENT_CLIPPING_ENABLED = False
-GRADIENT_CLIPPING_NORM_TYPE = 2
-GRADIENT_CLIPPING_MAX_NORM = 5.0
-GRADIENT_CLIPPING_VALUE = 5.0
 
 
 def get_hyperparams(params=None):
@@ -163,8 +159,4 @@ def get_hyperparams(params=None):
         'training   batch_size_test': BATCH_SIZE_TEST,
         'training   lr_step_size': LR_STEP_SIZE,
         'training   lr_gamma': LR_GAMMA,
-        'training   gradient_clipping_enabled': GRADIENT_CLIPPING_ENABLED,
-        'training   gradient_clipping_norm_type': GRADIENT_CLIPPING_NORM_TYPE,
-        'training   gradient_clipping_max_norm': GRADIENT_CLIPPING_MAX_NORM,
-        'training   gradient_clipping_value': GRADIENT_CLIPPING_VALUE
     } | params

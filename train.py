@@ -353,9 +353,6 @@ def go_train(rank, world_size, arch_mode, module, experiment_name, port, train_d
         'batch_size': const.BATCH_SIZE,
         'lr_step_size': const.LR_STEP_SIZE,
         'lr_gamma': const.LR_GAMMA,
-        'grad_clipping_enabled': const.GRADIENT_CLIPPING_ENABLED,
-        'grad_clipping_max_norm': const.GRADIENT_CLIPPING_MAX_NORM,
-        'grad_clipping_norm_type': const.GRADIENT_CLIPPING_NORM_TYPE,
 
         'device': const.DEVICE,
     }

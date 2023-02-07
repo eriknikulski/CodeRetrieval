@@ -71,9 +71,6 @@ def tune_train(config, checkpoint_dir=None):
         'encoder_layers': const.ENCODER_LAYERS,
         'hidden_size': const.HIDDEN_SIZE,
         'ignore_padding_in_loss': const.IGNORE_PADDING_IN_LOSS,
-        'grad_clipping_enabled': const.GRADIENT_CLIPPING_ENABLED,
-        'grad_clipping_max_norm': const.GRADIENT_CLIPPING_MAX_NORM,
-        'grad_clipping_norm_type': const.GRADIENT_CLIPPING_NORM_TYPE,
         'device': device,
     }
 
@@ -130,9 +127,6 @@ def run_test(best_trial, gpus_per_trial):
         'encoder_layers': const.ENCODER_LAYERS,
         'hidden_size': const.HIDDEN_SIZE,
         'ignore_padding_in_loss': const.IGNORE_PADDING_IN_LOSS,
-        'grad_clipping_enabled': const.GRADIENT_CLIPPING_ENABLED,
-        'grad_clipping_max_norm': const.GRADIENT_CLIPPING_MAX_NORM,
-        'grad_clipping_norm_type': const.GRADIENT_CLIPPING_NORM_TYPE,
         'device': device,
     }
     test_loss, test_acc = train.test_loop(best_encoder, best_decoder, dataloader, loss_fn, config)

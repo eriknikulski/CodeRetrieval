@@ -118,11 +118,6 @@ class EncoderRNN(nn.Module):
         self.lstm = nn.LSTM(hidden_size, hidden_size, self.layers, bidirectional=(self.bidirectional == 2),
                             dropout=self.lstm_dropout, batch_first=True, device=self.device)
 
-        if const.GRADIENT_CLIPPING_ENABLED:
-            for p in self.lstm.parameters():
-                p.register_hook(
-                    lambda grad: torch.clamp(grad, -const.GRADIENT_CLIPPING_VALUE, const.GRADIENT_CLIPPING_VALUE))
-
     def forward(self, input, lengths=None):
         hidden = self.init_hidden()
         embedded = self.embedding(input)
@@ -163,11 +158,6 @@ class DecoderRNN(nn.Module):
                             dropout=self.lstm_dropout, batch_first=True, device=self.device)
         self.out = nn.Linear(self.bidirectional * self.hidden_size, self.output_size, device=self.device)
         self.softmax = nn.LogSoftmax(dim=2).to(self.device)
-
-        if const.GRADIENT_CLIPPING_ENABLED:
-            for p in self.lstm.parameters():
-                p.register_hook(
-                    lambda grad: torch.clamp(grad, -const.GRADIENT_CLIPPING_VALUE, const.GRADIENT_CLIPPING_VALUE))
 
     def forward(self, input, hidden):
         embedded = self.embedding(input)
