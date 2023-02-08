@@ -44,8 +44,8 @@ class CodeDataset(Dataset):
     def __init__(self, path, transform=data.normalize_docstring, target_transform=data.transform_code_sequence,
                  get_methode_name=data.get_code_methode_name, get_code_tokens=data.get_code_tokens,
                  min_tokens_docstring=const.MIN_LENGTH_DOCSTRING, max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
-                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE, language=None,
-                 build_language=True, to_tensors=True, remove_duplicates=True, create_negatives=True):
+                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE, cut_lengths=False,
+                 language=None, build_language=True, to_tensors=True, remove_duplicates=True, create_negatives=True):
         self.path = path
         self.negatives = create_negatives
         self.lang = language if language else None
@@ -59,13 +59,16 @@ class CodeDataset(Dataset):
         self.df[['methode_name']] = self.df[['func_name']].applymap(get_methode_name)
         self.df[['code_tokens']] = self.df[['code']].applymap(get_code_tokens)
 
+        self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring, min_tokens_code,  max_tokens_code,
+                                        cut_lengths)
+
         self.df[['docstring_tokens_length']] = self.df[['docstring_tokens']].applymap(len)
         self.df[['code_sequence_length']] = self.df[['code_sequence']].applymap(len)
         self.df[['methode_name_length']] = self.df[['methode_name']].applymap(len)
         self.df[['code_tokens_length']] = self.df[['code_tokens']].applymap(len)
 
+        self.df = self.df[self.working_items]
 
-        self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring, min_tokens_code,  max_tokens_code)
         if remove_duplicates:
             self.remove_duplicates()
 
@@ -151,33 +154,52 @@ class CodeDataset(Dataset):
 
     def enforce_length_constraints(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
                                    max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
-                                   min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE):
+                                   min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE,
+                                   cut=False):
         if isinstance(self.df, pd.DataFrame):
             self._enforce_length_constraints_df(min_tokens_docstring, max_tokens_docstring,
-                                                min_tokens_code, max_tokens_code)
+                                                min_tokens_code, max_tokens_code, cut)
         else:
             self._enforce_length_constraints_list(min_tokens_docstring, max_tokens_docstring,
-                                                  min_tokens_code, max_tokens_code)
+                                                  min_tokens_code, max_tokens_code, cut)
 
     def _enforce_length_constraints_df(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
                                        max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
-                                       min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE):
-        self.df = self.df[self.working_items][
-            (self.df['docstring_tokens'].map(len) <= max_tokens_docstring) &
-            (self.df['docstring_tokens'].map(len) >= min_tokens_docstring)]
-        self.df = self.df[self.working_items][
-            (self.df['code_sequence'].map(len) <= max_tokens_code) &
-            (self.df['code_sequence'].map(len) >= min_tokens_code)]
+                                       min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE,
+                                       cut=False):
+        items = [elem for elem in self.working_items if 'length' not in elem]
+        if cut:
+            doc_items = [elem for elem in items if 'docstring_tokens' in elem and 'length' not in elem]
+            code_items = [elem for elem in items if 'docstring_tokens' not in elem and 'length' not in elem]
+            self.df[doc_items] = self.df[doc_items].applymap(lambda x: x[:max_tokens_docstring])
+            self.df[code_items] = self.df[code_items].applymap(lambda x: x[:max_tokens_code])
+        else:
+            self.df = self.df[
+                (self.df['docstring_tokens'].map(len) <= max_tokens_docstring) &
+                (self.df['docstring_tokens'].map(len) >= min_tokens_docstring)]
+            self.df = self.df[
+                (self.df['code_sequence'].map(len) <= max_tokens_code) &
+                (self.df['code_sequence'].map(len) >= min_tokens_code)]
 
     def _enforce_length_constraints_list(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
                                          max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
-                                         min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE):
+                                         min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE,
+                                         cut=False):
         doc_idx = self.working_items.index('docstring_tokens')
         code_idx = self.working_items.index('code_sequence')
 
-        self.df = [elems for elems in self.df if
-                   min_tokens_docstring <= len(elems[doc_idx]) <= max_tokens_docstring and
-                   min_tokens_code <= len(elems[code_idx]) <= max_tokens_code]
+        doc_idcs = [self.working_items.index(elem) for elem in self.working_items if 'docstring' in elem and 'length' not in elem]
+        code_idcs = [self.working_items.index(elem) for elem in self.working_items if 'code' in elem and 'length' not in elem]
+
+        if cut:
+            for idx in doc_idcs:
+                self.df[idx] = [elem[:max_tokens_docstring] for elem in self.df]
+            for idx in code_idcs:
+                self.df[idx] = [elem[:max_tokens_code] for elem in self.df]
+        else:
+            self.df = [elems for elems in self.df if
+                       min_tokens_docstring <= len(elems[doc_idx]) <= max_tokens_docstring and
+                       min_tokens_code <= len(elems[code_idx]) <= max_tokens_code]
 
 
 if __name__ == "__main__":
