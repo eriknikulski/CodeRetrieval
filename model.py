@@ -100,6 +100,8 @@ class Architecture:
     def get_decoder_languages(self, doc_lang, code_lang):
         return self.get_decoder_elements(doc_lang, code_lang)
 
+    def get_decoder_targets(self, doc_target, code_target):
+        return self.get_decoder_elements(doc_target, code_target)
 
 class EncoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size, batch_size, embedding, bidirectional=const.BIDIRECTIONAL,

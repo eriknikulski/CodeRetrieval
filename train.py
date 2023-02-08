@@ -206,10 +206,11 @@ class Trainer:
                     encoder_id = self.arch.get_rand_encoder_id()
                     encoder_inputs = self.arch.get_encoder_input(encoder_id, doc_inputs, code_inputs)
                     decoder_sizes = self.arch.get_decoder_sizes(doc_seqs[0].size(0), code_seqs[0].size(0))
+                    targets = self.arch.get_decoder_targets(doc_seqs, code_seqs)
 
                     with optional(self.config['fp16'] and self.scaler, torch.cuda.amp.autocast):
                         decoders_outputs, outputs_seqs = self.model(encoder_id, encoder_inputs, decoder_sizes)
-                    batch_loss = self.criterion(decoders_outputs, [doc_seqs, code_seqs])
+                    batch_loss = self.criterion(decoders_outputs, targets)
                 else:
                     with optional(self.config['fp16'] and self.scaler, torch.cuda.amp.autocast):
                         batch_loss = self.model(doc_inputs, code_inputs, neg_doc_inputs, neg_code_inputs)
