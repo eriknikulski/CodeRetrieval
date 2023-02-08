@@ -124,18 +124,6 @@ def normalize_docstring(s):
     return s
 
 
-def split_subtokens(s):
-    re_words = re.compile(r'''
-                # Find words in a string. Order matters!
-                [A-Z]+(?=[A-Z][a-z]) |  # All upper case before a capitalized word
-                [A-Z]?[a-z]+ |  # Capitalized words / all lower case
-                [A-Z]+ |  # All upper case
-                \d+ | # Numbers
-                .+
-            ''', re.VERBOSE)
-    return [sub_token for sub_token in re_words.findall(s) if not sub_token == '_']
-
-
 def normalize_code(s):
     s = s.encode('ascii', 'ignore').decode('ascii')
     return re.sub(r'^\s*@.*', r'', s, flags=re.MULTILINE)
@@ -145,7 +133,7 @@ def transform_code_sequence(s):
     s = normalize_code(s)
 
     tokens = list(javalang.tokenizer.tokenize(s))
-    s = ' '.join([' '.join(split_subtokens(tok.value)) for tok in tokens
+    s = ' '.join([' '.join(split_identifier_into_parts(tok.value)) for tok in tokens
                   if not isinstance(tok, javalang.tokenizer.Modifier)])
 
     # replace text
@@ -179,5 +167,5 @@ def get_code_tokens(s):
     tokens = list(javalang.tokenizer.tokenize(s))
 
     return list(elem.lower() for elem in
-                itertools.chain.from_iterable(split_subtokens(tok.value)
+                itertools.chain.from_iterable(split_identifier_into_parts(tok.value)
                                               for tok in tokens if not any(map(lambda c: isinstance(tok, c), remove))))
