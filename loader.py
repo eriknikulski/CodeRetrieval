@@ -53,7 +53,6 @@ class CodeDataset(Dataset):
                               'methode_name', 'methode_name_length', 'code_tokens', 'code_tokens_length']
 
         self.df = read_folder(RichPath.create(path))
-        self.df = self.df[:100]
 
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
         self.df[['code_sequence']] = self.df[['code']].applymap(target_transform)
