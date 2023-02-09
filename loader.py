@@ -1,3 +1,4 @@
+import torch
 from dpu_utils.utils import RichPath
 from dpu_utils.codeutils.deduplication import DuplicateDetector
 import pandas as pd
@@ -172,8 +173,8 @@ class CodeDataset(Dataset):
         if cut:
             doc_items = [elem for elem in items if 'docstring_tokens' in elem and 'length' not in elem]
             code_items = [elem for elem in items if 'docstring_tokens' not in elem and 'length' not in elem]
-            self.df[doc_items] = self.df[doc_items].applymap(lambda x: x[:max_tokens_docstring])
-            self.df[code_items] = self.df[code_items].applymap(lambda x: x[:max_tokens_code])
+            self.df[doc_items] = self.df[doc_items].applymap(lambda x: x[:max_tokens_docstring - 1] + const.EOS_TOKEN)
+            self.df[code_items] = self.df[code_items].applymap(lambda x: x[:max_tokens_code - 1] + const.EOS_TOKEN)
         else:
             self.df = self.df[
                 (self.df['docstring_tokens'].map(len) <= max_tokens_docstring) &
@@ -193,10 +194,12 @@ class CodeDataset(Dataset):
         code_idcs = [self.working_items.index(elem) for elem in self.working_items if 'code' in elem and 'length' not in elem]
 
         if cut:
-            for idx in doc_idcs:
-                self.df[idx] = [elem[:max_tokens_docstring] for elem in self.df]
-            for idx in code_idcs:
-                self.df[idx] = [elem[:max_tokens_code] for elem in self.df]
+            for i, item in enumerate(self.df):
+                for idx in doc_idcs:
+                    self.df[i][idx] = torch.cat((item[idx][:max_tokens_docstring - 1], torch.tensor([const.EOS_TOKEN])))
+                for idx in code_idcs:
+                    self.df[i][idx] = torch.cat((item[idx][:max_tokens_code - 1], torch.tensor([const.EOS_TOKEN])))
+
         else:
             self.df = [elems for elems in self.df if
                        min_tokens_docstring <= len(elems[doc_idx]) <= max_tokens_docstring and
