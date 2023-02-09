@@ -156,7 +156,7 @@ class CodeDataset(Dataset):
     def enforce_length_constraints(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
                                    max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
                                    min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE,
-                                   cut=False):
+                                   cut=const.CUT_LENGTHS):
         if isinstance(self.df, pd.DataFrame):
             self._enforce_length_constraints_df(min_tokens_docstring, max_tokens_docstring,
                                                 min_tokens_code, max_tokens_code, cut)
