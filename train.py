@@ -395,11 +395,6 @@ def run(args):
         with open(const.DATA_VALID_PATH, 'rb') as valid_file:
             valid_data = pickle.load(valid_file)
             valid_data.enforce_length_constraints()
-
-        if not const.SHUFFLE_DATA:
-            train_data.sort()
-            test_data.sort()
-            valid_data.sort()
     elif not args.last_data:
         lang = data.Lang('lang')
         train_data = loader.CodeDataset(const.PROJECT_PATH + data_path + 'train/', language=lang,
