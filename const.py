@@ -92,6 +92,7 @@ MIN_LENGTH_DOCSTRING = 3
 MAX_LENGTH_DOCSTRING = 25
 MIN_LENGTH_CODE = 20
 MAX_LENGTH_CODE = 100
+CUT_LENGTHS = False
 
 SIMPLE_CODE_ENCODER = False
 ENCODER_LAYERS = 2
@@ -141,6 +142,7 @@ def get_hyperparams(params=None):
         'data   max_length_docstring': MAX_LENGTH_DOCSTRING,
         'data   min_length_code': MIN_LENGTH_CODE,
         'data   max_length_code': MAX_LENGTH_CODE,
+        'data   cut_lengths': CUT_LENGTHS,
 
         'model   simple_code_encoder': SIMPLE_CODE_ENCODER,
         'model   encoder_layers': ENCODER_LAYERS,

@@ -44,8 +44,9 @@ class CodeDataset(Dataset):
     def __init__(self, path, transform=data.normalize_docstring, target_transform=data.transform_code_sequence,
                  get_methode_name=data.get_code_methode_name, get_code_tokens=data.get_code_tokens,
                  min_tokens_docstring=const.MIN_LENGTH_DOCSTRING, max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
-                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE, cut_lengths=False,
-                 language=None, build_language=True, to_tensors=True, remove_duplicates=True, create_negatives=True):
+                 min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE,
+                 cut_lengths=const.CUT_LENGTHS, language=None, build_language=True, to_tensors=True,
+                 remove_duplicates=True, create_negatives=True):
         self.path = path
         self.negatives = create_negatives
         self.lang = language if language else None
