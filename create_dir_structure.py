@@ -18,6 +18,7 @@ def create_dirs():
         const.MODEL_PATH,
         const.CHECKPOINT_PATH,
         const.ANALYZE_PATH,
+        const.ANALYZE_OCCURRENCE,
         const.PROFILER_TRACE_PATH,
         const.PROFILER_STACKS_PATH,
     ]

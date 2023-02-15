@@ -1,10 +1,13 @@
 import argparse
+import collections
 import pickle
 
 from subword_nmt import learn_bpe
 from matplotlib import pyplot as plt
+from nltk.util import ngrams
 
 import const
+
 
 
 def analyze_vocab(vocab):
@@ -40,7 +43,7 @@ def analyze_vocab_dataset():
     analyze_entries(train_data.df[['docstring_tokens']].applymap(len).to_list())
 
 
-def analyze_vocab_train_file(train_file_path=const.PREPROCESS_BPE_TRAIN_PATH_DOC):
+def analyze_vocab_train_file(train_file_path=const.PREPROCESS_BPE_TRAIN_PATH):
     print('Reading train file...')
     with open(train_file_path, encoding='utf-8') as train_file:
         vocab = learn_bpe.get_vocabulary(train_file)
@@ -52,15 +55,60 @@ def analyze_vocab_train_file(train_file_path=const.PREPROCESS_BPE_TRAIN_PATH_DOC
             lines.append(len(line.strip('\r\n ').split(' ')))
         analyze_entries(lines)
 
+def get_ngram_occurrence(file, ngram_size=2, lower_freq_limit=10):
+    with open(file, 'r') as f:
+        grams = ngrams(f.read().split(), ngram_size)
+
+    return [(elem, count) for elem, count in collections.Counter(grams).most_common() if count >= lower_freq_limit]
+
+
+def code_seq_occurrence(lower, upper):
+    code_seq_file = const.DATA_PATH + 'code_sequences.csv'
+    code_seq_occurrence_file = const.ANALYZE_OCCURRENCE + 'code_sequences'
+
+    for i in range(lower, upper):
+        res = get_ngram_occurrence(code_seq_file, ngram_size=i)
+
+        with open(f'{code_seq_occurrence_file}_{i}.csv', 'w') as f:
+            f.writelines([f'{occ} : {" ".join(item)}\n' for item, occ in res])
+
+
+def code_tokens_occurrence(lower, upper):
+    code_tokens_file = const.DATA_PATH + 'code_tokens.csv'
+    code_tokens_occurrence_file = const.ANALYZE_OCCURRENCE + 'code_tokens'
+
+    for i in range(lower, upper):
+        res = get_ngram_occurrence(code_tokens_file, ngram_size=i)
+
+        with open(f'{code_tokens_occurrence_file}_{i}.csv', 'w') as f:
+            f.writelines([f'{occ} : {" ".join(item)}\n' for item, occ in res])
+
+
+def methode_name_occurrence(lower, upper):
+    methode_name_file = const.DATA_PATH + 'methode_name.csv'
+    methode_name_occurrence_file = const.ANALYZE_OCCURRENCE + 'methode_name'
+
+    for i in range(lower, upper):
+        res = get_ngram_occurrence(methode_name_file, ngram_size=i)
+
+        with open(f'{methode_name_occurrence_file}_{i}.csv', 'w') as f:
+            f.writelines([f'{occ} : {" ".join(item)}\n' for item, occ in res])
+
 
 parser = argparse.ArgumentParser(description='ML model for sequence to sequence translation')
-parser.add_argument('-t', '--type', choices=['dataset', 'file'], help='Chose either dataset or file')
+parser.add_argument('-task', '--task', choices=['vocab', 'ngram'], help='What to analyze')
+parser.add_argument('-t', '--type', choices=['dataset', 'file'], help='Chose either dataset or file. When task is vocab.')
 parser.add_argument('-p', '--file-path', help='The file path to be used if type is file')
 
 if __name__ == '__main__':
     args = parser.parse_args()
 
-    if args.type == 'dataset':
-        analyze_vocab_dataset()
+    if args.task == 'ngram':
+        code_seq_occurrence(lower=2, upper=20)
+        code_tokens_occurrence(lower=2, upper=20)
+        methode_name_occurrence(lower=2, upper=20)
     else:
-        analyze_vocab_train_file(args.file_path)
+        if args.type == 'dataset':
+            analyze_vocab_dataset()
+        else:
+            analyze_vocab_train_file(args.file_path)
