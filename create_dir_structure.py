@@ -12,6 +12,7 @@ def create_dirs():
         const.PROJECT_PATH + 'data/synthetic/valid/',
         const.EVAL_PATH,
         const.DATA_WORKING_PATH,
+        const.DATA_FAIRSEQ_PATH,
         const.PREPROCESS_BPE_TRAIN_PATH,
         const.PREPROCESS_BPE_CODES_PATH,
         const.PREPROCESS_BPE_VOCAB_PATH,
