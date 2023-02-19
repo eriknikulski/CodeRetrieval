@@ -173,8 +173,8 @@ class CodeDataset(Dataset):
         if cut:
             doc_items = [elem for elem in items if 'docstring_tokens' in elem and 'length' not in elem]
             code_items = [elem for elem in items if 'docstring_tokens' not in elem and 'length' not in elem]
-            self.df[doc_items] = self.df[doc_items].applymap(lambda x: x[:max_tokens_docstring - 1] + const.EOS_TOKEN)
-            self.df[code_items] = self.df[code_items].applymap(lambda x: x[:max_tokens_code - 1] + const.EOS_TOKEN)
+            self.df[doc_items] = self.df[doc_items].applymap(lambda x: x[:max_tokens_docstring - 1])
+            self.df[code_items] = self.df[code_items].applymap(lambda x: x[:max_tokens_code - 1])
         else:
             self.df = self.df[
                 (self.df['docstring_tokens'].map(len) <= max_tokens_docstring) &
