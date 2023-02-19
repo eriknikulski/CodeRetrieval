@@ -140,6 +140,7 @@ def transform_code_sequence(s):
     s = re.sub(r'""".*"""', const.TEXT_TOKEN, s)
     s = re.sub(r'".*"', const.TEXT_TOKEN, s)
     s = re.sub(r'\'.*\'', const.CHAR_TOKEN, s)
+    s = replace_code_tokens(s)
     s = list(elem.lower() for elem in filter(None, s.split(' ')))
     return s
 
@@ -169,3 +170,48 @@ def get_code_tokens(s):
     return list(elem.lower() for elem in
                 itertools.chain.from_iterable(split_identifier_into_parts(tok.value)
                                               for tok in tokens if not any(map(lambda c: isinstance(tok, c), remove))))
+
+
+def replace_code_tokens(s):
+    replace_dict = {
+        ') ;': ');',
+        '[ ]': '[]',
+        '( )': '()',
+        '() ;': '();',
+        '< t >': '<t>',
+        '( [text] )': '([text])',
+        '( request )': '(request)',
+        '< string >': '<string>',
+        '< ? >': '<?>',
+        '== null': '==null',
+        '!= null': '!=null',
+        'return null ;': 'returnNull;',
+        'return this ;': 'returnThis;',
+        'return true ;': 'returnTrue;',
+        'return false ;': 'returnFalse;',
+        'throws io exception': 'throwsIoException',
+        'throw new illegal argument exception': 'throwNewIllegalArgumentException',
+        'throw new illegal state exception': 'throwNewIllegalStateException',
+        'is any tracing enabled ( )': 'isAnyTracingEnabled()',
+        '< string , string >': '<string,string>',
+        '{ return null; }': '{returnNull;}',
+        '< string , object >': '<string,object>',
+        'map < string , string >': 'map<string,string>',
+        'map < string , object >': 'map<string,object>',
+        'is entry enabled ( )': 'isEntryEnabled()',
+        '. single ( ) . body ( )': '.single().body()',
+        'google . api . ads . admanager . axis . v': 'google.api.ads.admanager.axis.v',
+        'request = before client execution ( request ) ;': 'request=beforeClientExecution(request);',
+        'if ( trace component . is any tracing enabled ( ) && tc . is entry enabled ( ) )':
+            'if(traceComponent.isAnyTracingEnabled()&&tc.isEntryEnabled())',
+        'if ( tc . is entry enabled ( ) ) tr . entry ( tc , [text] ) ;': 'if(tc.isEntryEnabled())tr.entry(tc,[text]);',
+        '{ throw new sdk client exception ( [text] + e . get message ( ) , e ) ; }':
+            '{throwNewSdkClientException([text]+e.getMessage(),e);}',
+        '( ) { node node = child node . get or create ( [text] , child node , node ) ;':
+            '(){nodeNode=childNode.getOrCreate([text],childNode,node);'
+    }
+
+    for seq, rep in reversed(replace_dict.items()):
+        s = s.replace(seq, rep)
+
+    return s
