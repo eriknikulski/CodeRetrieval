@@ -64,11 +64,6 @@ class CodeDataset(Dataset):
         self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring, min_tokens_code,  max_tokens_code,
                                         cut_lengths)
 
-        self.df[['docstring_tokens_length']] = self.df[['docstring_tokens']].applymap(len)
-        self.df[['code_sequence_length']] = self.df[['code_sequence']].applymap(len)
-        self.df[['methode_name_length']] = self.df[['methode_name']].applymap(len)
-        self.df[['code_tokens_length']] = self.df[['code_tokens']].applymap(len)
-
         self.df = self.df[self.working_items]
 
         if remove_duplicates:
@@ -154,6 +149,26 @@ class CodeDataset(Dataset):
         print('convert dataframe to numpy')
         self.df = self.df.to_numpy().tolist()
 
+    def set_lengths(self):
+        if isinstance(self.df, pd.DataFrame):
+            self._set_lengths_df()
+        else:
+            self._set_lengths_list()
+
+    def _set_lengths_df(self):
+        self.df[['docstring_tokens_length']] = self.df[['docstring_tokens']].applymap(len)
+        self.df[['code_sequence_length']] = self.df[['code_sequence']].applymap(len)
+        self.df[['methode_name_length']] = self.df[['methode_name']].applymap(len)
+        self.df[['code_tokens_length']] = self.df[['code_tokens']].applymap(len)
+
+    def _set_lengths_list(self):
+        # works under the assumption that the length column is at index +1 of the sequence one
+        idcs = [self.working_items.index(elem) for elem in self.working_items if 'length' in elem]
+        for i, item in enumerate(self.df):
+            for idx in idcs:
+                self.df[i][idx] = len(self.df[i][idx - 1])
+
+
     def enforce_length_constraints(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
                                    max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
                                    min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE,
@@ -164,6 +179,7 @@ class CodeDataset(Dataset):
         else:
             self._enforce_length_constraints_list(min_tokens_docstring, max_tokens_docstring,
                                                   min_tokens_code, max_tokens_code, cut)
+        self.set_lengths()
 
     def _enforce_length_constraints_df(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
                                        max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
@@ -197,8 +213,10 @@ class CodeDataset(Dataset):
             for i, item in enumerate(self.df):
                 for idx in doc_idcs:
                     self.df[i][idx] = torch.cat((item[idx][:max_tokens_docstring - 1], torch.tensor([const.EOS_TOKEN])))
+                    # self.df[i][idx + 1] = len(self.df[i][idx])
                 for idx in code_idcs:
                     self.df[i][idx] = torch.cat((item[idx][:max_tokens_code - 1], torch.tensor([const.EOS_TOKEN])))
+                    # self.df[i][idx + 1] = len(self.df[i][idx])
 
         else:
             self.df = [elems for elems in self.df if
