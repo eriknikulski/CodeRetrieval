@@ -5,26 +5,34 @@ import loader
 
 
 parser = argparse.ArgumentParser(description='Creates dataset necessary for fairseq-preprocess')
-parser.add_argument('-d', '--data', choices=['doc', 'code'], help='The data to be used.')
+parser.add_argument('-d', '--data', choices=['doc', 'code'], action='append', nargs='*', help='The data to be used.')
 
-def create_fairseq_data(input_file, output_file, item='code_sequence'):
-    data = loader.CodeDataset(input_file, to_tensors=False)
-    data.enforce_length_constraints()
-    with open(output_file, 'w') as fairseq_file:
+def create_fairseq_data(data, output_file, item='code_sequence'):
+    with open(output_file, 'w+') as fairseq_file:
         fairseq_file.writelines([f'{" ".join(elem)}\n' for elem in data.df[item]])
 
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if args.data == 'doc':
-        train_path = const.DATA_DOC_TRAIN_FAIRSEQ_PATH
-        valid_path = const.DATA_DOC_VALID_FAIRSEQ_PATH
-        test_path = const.DATA_DOC_TEST_FAIRSEQ_PATH
-    else:
-        train_path = const.DATA_CODE_TRAIN_FAIRSEQ_PATH
-        valid_path = const.DATA_CODE_VALID_FAIRSEQ_PATH
-        test_path = const.DATA_CODE_TEST_FAIRSEQ_PATH
+    data = args.data[0]
+    if len(data) < 1 or len(data) > 2:
+        raise Exception('Data argument should contain one or two values!')
 
-    create_fairseq_data(const.PROJECT_PATH + const.JAVA_PATH + 'train/', train_path)
-    create_fairseq_data(const.PROJECT_PATH + const.JAVA_PATH + 'valid/', valid_path)
-    create_fairseq_data(const.PROJECT_PATH + const.JAVA_PATH + 'test/', test_path)
+    columns = {'doc': 'docstring_tokens', 'code': 'code_sequence'}
+    folder_path = const.DATA_FAIRSEQ_BASE_PATH + data[0] + '-' + data[-1] + '/'
+
+    train_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'train/', to_tensors=False)
+    train_data.enforce_length_constraints()
+    valid_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'valid/', to_tensors=False)
+    valid_data.enforce_length_constraints()
+    test_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/', to_tensors=False)
+    test_data.enforce_length_constraints()
+
+    for elem in data:
+        train_path = folder_path + 'train.' + elem
+        valid_path = folder_path + 'valid.' + elem
+        test_path = folder_path + 'test.' + elem
+
+        create_fairseq_data(train_data, train_path, item=columns[elem])
+        create_fairseq_data(valid_data, valid_path, item=columns[elem])
+        create_fairseq_data(test_data, test_path, item=columns[elem])
