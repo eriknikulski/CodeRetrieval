@@ -12,6 +12,7 @@ import fileinput
 import logging
 import math
 import os
+import pickle
 import sys
 import time
 from argparse import Namespace
@@ -204,6 +205,7 @@ def main(cfg: FairseqConfig):
     logger.info("NOTE: hypothesis and token scores are output in base 2")
     logger.info("Type the input sentence and press return:")
     start_id = 0
+    embeddings = []
     for inputs in buffered_read(cfg.interactive.input, cfg.interactive.buffer_size):
         results = []
         for batch in make_batches(inputs, cfg, task, max_positions, encode_fn):
@@ -224,46 +226,15 @@ def main(cfg: FairseqConfig):
                 },
             }
             translate_start_time = time.time()
-            translations = task.inference_step(
+            embeddings.append(task.inference_step(
                 generator, models, sample, constraints=constraints
-            )
-            translate_time = time.time() - translate_start_time
-            total_translate_time += translate_time
-            list_constraints = [[] for _ in range(bsz)]
-            if cfg.generation.constraints:
-                list_constraints = [unpack_constraints(c) for c in constraints]
-            for i, (id, hypos) in enumerate(zip(batch.ids.tolist(), translations)):
-                src_tokens_i = utils.strip_pad(src_tokens[i], tgt_dict.pad())
-                constraints = list_constraints[i]
-                results.append(
-                    (
-                        start_id + id,
-                        src_tokens_i,
-                        hypos,
-                        {
-                            "constraints": constraints,
-                            "time": translate_time / len(translations),
-                        },
-                    )
-                )
-
-        # sort output to match input order
-        for id_, src_tokens, hypos, info in sorted(results, key=lambda x: x[0]):
-            src_str = ""
-            if src_dict is not None:
-                src_str = src_dict.string(src_tokens, cfg.common_eval.post_process)
-                print("S-{}\t{}".format(id_, src_str))
-                print("W-{}\t{:.3f}\tseconds".format(id_, info["time"]))
-                for constraint in info["constraints"]:
-                    print(
-                        "C-{}\t{}".format(
-                            id_,
-                            tgt_dict.string(constraint, cfg.common_eval.post_process),
-                        )
-                    )
+            ))
 
         # update running id_ counter
         start_id += len(inputs)
+
+    with open(os.environ['CODE_EMBEDDING_PATH'], 'wb') as f:
+        pickle.dump(embeddings, f)
 
     logger.info(
         "Total time: {:.3f} seconds; translation time: {:.3f}".format(

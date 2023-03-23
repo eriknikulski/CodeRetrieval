@@ -489,7 +489,7 @@ class EmbeddingGenerator(SequenceGenerator):
         # ensure encoder_outs is a List.
         assert encoder_outs is not None
 
-        return encoder_outs
+        return src_tokens, encoder_outs
 
 @register_task("multilingual_retrieval")
 class MultilingualTranslationWithRetrievalInferenceTask(MultilingualTranslationTask):
@@ -516,7 +516,7 @@ class MultilingualTranslationWithRetrievalInferenceTask(MultilingualTranslationT
                 )
             else:
                 bos_token = self.target_dictionary.eos()
-            encoder_outs = generator.generate(
+            _, encoder_outs = generator.generate(
                 models,
                 sample,
                 prefix_tokens=prefix_tokens,
@@ -526,10 +526,11 @@ class MultilingualTranslationWithRetrievalInferenceTask(MultilingualTranslationT
 
             best = []
             for code_seq, code_embed in self.code_embeddings:
-                val = F.cosine_similarity(encoder_outs[1], code_embed[1])
+                val = F.cosine_similarity(encoder_outs[0][1], code_embed[0][1])
                 if len(best) < int(os.environ['RETRIEVAL_COUNT']):
                     best.append([val, code_seq])
                     continue
+                # TODO: compairisone does not work! val is Tensor
                 if val > best[0][0]:
                     best[0] = [val, code_seq]
                     best.sort(key=lambda x: x[0])
@@ -680,23 +681,14 @@ class MultilingualEmbeddingCreator(MultilingualTranslationTask):
                 )
             else:
                 bos_token = self.target_dictionary.eos()
-            encoder_outs = generator.generate(
+            src_tokens, encoder_outs = generator.generate(
                 models,
                 sample,
                 prefix_tokens=prefix_tokens,
                 constraints=constraints,
                 bos_token=bos_token,
             )
-
-            # very very inefficient -> find a better way
-            with open(os.environ['CODE_EMBEDDING_PATH'], 'r+b') as f:
-                try:
-                    embeddings = pickle.load(f)
-                    embeddings.append(encoder_outs)
-                except EOFError:
-                    embeddings = [encoder_outs]
-                pickle.dump(embeddings, f)
-        return '  --  NOTHING BECAUSE EMBEDDINGS WHERE CREATED  --  '
+        return [src_tokens, encoder_outs]
 
     def build_generator(
         self,
