@@ -47,7 +47,7 @@ class CodeDataset(Dataset):
                  min_tokens_docstring=const.MIN_LENGTH_DOCSTRING, max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
                  min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE,
                  cut_lengths=const.CUT_LENGTHS, language=None, build_language=True, to_tensors=True,
-                 remove_duplicates=True, create_negatives=True):
+                 remove_duplicates=True, create_negatives=False, verbose=False):
         self.path = path
         self.negatives = create_negatives
         self.lang = language if language else None
@@ -56,13 +56,32 @@ class CodeDataset(Dataset):
 
         self.df = read_folder(RichPath.create(path))
 
+        if verbose:
+            print('\nInitial information:')
+            print(f'length of the data set is {len(self.df)}')
+            print(f'mean length of docstring tokens is {self.df[["docstring_tokens"]].applymap(len).mean().values[0]}')
+            print(f'mean length of code tokens is {self.df[["code_tokens"]].applymap(len).mean().values[0]}')
+
+
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)
         self.df[['code_sequence']] = self.df[['code']].applymap(target_transform)
         self.df[['methode_name']] = self.df[['func_name']].applymap(get_methode_name)
         self.df[['code_tokens']] = self.df[['code']].applymap(get_code_tokens)
 
+        if verbose:
+            print('\nInformation after applying transformation functions:')
+            print(f'length of the data set is {len(self.df)}')
+            print(f'mean length of docstring tokens is {self.df[["docstring_tokens"]].applymap(len).mean().values[0]}')
+            print(f'mean length of code tokens is {self.df[["code_sequence"]].applymap(len).mean().values[0]}')
+
         self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring, min_tokens_code,  max_tokens_code,
                                         cut_lengths)
+
+        if verbose:
+            print('\nInformation after enforcing length constraints on the dataset:')
+            print(f'length of the data set is {len(self.df)}')
+            print(f'mean length of docstring tokens is {self.df[["docstring_tokens"]].applymap(len).mean().values[0]}')
+            print(f'mean length of code tokens is {self.df[["code_sequence"]].applymap(len).mean().values[0]}')
 
         self.df = self.df[self.working_items]
 
@@ -70,6 +89,12 @@ class CodeDataset(Dataset):
             self.remove_duplicates()
 
         self.df.reset_index(drop=True, inplace=True)
+
+        if verbose:
+            print('\nInformation after removing duplicates:')
+            print(f'length of the data set is {len(self.df)}')
+            print(f'mean length of docstring tokens is {self.df[["docstring_tokens"]].applymap(len).mean().values[0]}')
+            print(f'mean length of code tokens is {self.df[["code_sequence"]].applymap(len).mean().values[0]}')
 
         if self.negatives:
             self.create_negatives()
