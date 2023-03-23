@@ -1,7 +1,10 @@
+import os
+import pickle
 from collections import OrderedDict
 from typing import Dict, Optional
 
-from fairseq import utils
+import torch
+from fairseq import search, utils
 from fairseq.models import (
     FairseqEncoderDecoderModel,
     BaseFairseqModel,
@@ -11,8 +14,12 @@ from fairseq.models import (
 from fairseq.models.fairseq_model import check_type, FairseqMultiModel
 from fairseq.models.lstm import Embedding, LSTMEncoder, LSTMDecoder, base_architecture, LSTMModel
 from fairseq.models.transformer import TransformerModel
+from fairseq.sequence_generator import SequenceGenerator
+from fairseq.tasks import register_task
+from fairseq.tasks.multilingual_translation import MultilingualTranslationTask, _lang_token_index
 from fairseq.utils import safe_hasattr
 from torch import Tensor
+import torch.nn.functional as F
 
 
 DEFAULT_MAX_SOURCE_POSITIONS = 1e5
@@ -408,6 +415,419 @@ class MultilingualLSTMModel(FairseqMultiModel):
             if lang_pair not in self.models:
                 del state_dict_subset[k]
         super().load_state_dict(state_dict_subset, strict=strict, model_cfg=model_cfg)
+
+
+class EmbeddingGenerator(SequenceGenerator):
+
+    def _generate(
+        self,
+        sample: Dict[str, Dict[str, Tensor]],
+        prefix_tokens: Optional[Tensor] = None,
+        constraints: Optional[Tensor] = None,
+        bos_token: Optional[int] = None,
+    ):
+        net_input = sample["net_input"]
+
+        if "src_tokens" in net_input:
+            src_tokens = net_input["src_tokens"]
+            # length of the source text being the character length except EndOfSentence and pad
+            src_lengths = (
+                (src_tokens.ne(self.eos) & src_tokens.ne(self.pad)).long().sum(dim=1)
+            )
+        elif "source" in net_input:
+            src_tokens = net_input["source"]
+            src_lengths = (
+                net_input["padding_mask"].size(-1) - net_input["padding_mask"].sum(-1)
+                if net_input["padding_mask"] is not None
+                else torch.tensor(src_tokens.size(-1)).to(src_tokens)
+            )
+        elif "features" in net_input:
+            src_tokens = net_input["features"]
+            src_lengths = (
+                net_input["padding_mask"].size(-1) - net_input["padding_mask"].sum(-1)
+                if net_input["padding_mask"] is not None
+                else torch.tensor(src_tokens.size(-1)).to(src_tokens)
+            )
+        else:
+            raise Exception(
+                "expected src_tokens or source in net input. input keys: "
+                + str(net_input.keys())
+            )
+
+        # bsz: total number of sentences in beam
+        # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
+        bsz, src_len = src_tokens.size()[:2]
+        beam_size = self.beam_size
+
+        if constraints is not None and not self.search.supports_constraints:
+            raise NotImplementedError(
+                "Target-side constraints were provided, but search method doesn't support them"
+            )
+
+        # Initialize constraints, when active
+        self.search.init_constraints(constraints, beam_size)
+
+        max_len: int = -1
+        if self.match_source_len:
+            max_len = src_lengths.max().item()
+        else:
+            max_len = min(
+                int(self.max_len_a * src_len + self.max_len_b),
+                self.max_len - 1,
+            )
+        assert (
+            self.min_len <= max_len
+        ), "min_len cannot be larger than max_len, please adjust these!"
+        # compute the encoder output for each beam
+        with torch.autograd.profiler.record_function("EnsembleModel: forward_encoder"):
+            encoder_outs = self.model.forward_encoder(net_input)
+
+        # placeholder of indices for bsz * beam_size to hold tokens and accumulative scores
+        new_order = torch.arange(bsz).view(-1, 1).repeat(1, beam_size).view(-1)
+        new_order = new_order.to(src_tokens.device).long()
+        encoder_outs = self.model.reorder_encoder_out(encoder_outs, new_order)
+        # ensure encoder_outs is a List.
+        assert encoder_outs is not None
+
+        return encoder_outs
+
+@register_task("multilingual_retrieval")
+class MultilingualTranslationWithRetrievalInferenceTask(MultilingualTranslationTask):
+
+    def __init__(self, args, dicts, training):
+        super().__init__(args, dicts, training)
+        self.code_embeddings = None
+
+    @staticmethod
+    def get_code_embeddings():
+        with open(os.environ['CODE_EMBEDDING_PATH'], 'rb') as f:
+            return pickle.load(f)
+
+    def inference_step(
+        self, generator, models, sample, prefix_tokens=None, constraints=None
+    ):
+        if self.code_embeddings is None:
+            self.code_embeddings = self.get_code_embeddings()
+
+        with torch.no_grad():
+            if self.args.decoder_langtok:
+                bos_token = _lang_token_index(
+                    self.target_dictionary, self.args.target_lang
+                )
+            else:
+                bos_token = self.target_dictionary.eos()
+            encoder_outs = generator.generate(
+                models,
+                sample,
+                prefix_tokens=prefix_tokens,
+                constraints=constraints,
+                bos_token=bos_token,
+            )
+
+            best = []
+            for code_seq, code_embed in self.code_embeddings:
+                val = F.cosine_similarity(encoder_outs[1], code_embed[1])
+                if len(best) < int(os.environ['RETRIEVAL_COUNT']):
+                    best.append([val, code_seq])
+                    continue
+                if val > best[0][0]:
+                    best[0] = [val, code_seq]
+                    best.sort(key=lambda x: x[0])
+
+        # or change to return complete list
+        return best[-1]
+
+    def build_generator(
+        self,
+        models,
+        args,
+        seq_gen_cls=None,
+        extra_gen_cls_kwargs=None,
+        prefix_allowed_tokens_fn=None,
+    ):
+        """
+        Build a :class:`~fairseq.SequenceGenerator` instance for this
+        task.
+
+        Args:
+            models (List[~fairseq.models.FairseqModel]): ensemble of models
+            args (fairseq.dataclass.configs.GenerationConfig):
+                configuration object (dataclass) for generation
+            extra_gen_cls_kwargs (Dict[str, Any]): extra options to pass
+                through to SequenceGenerator
+            prefix_allowed_tokens_fn (Callable[[int, torch.Tensor], List[int]]):
+                If provided, this function constrains the beam search to
+                allowed tokens only at each step. The provided function
+                should take 2 arguments: the batch ID (`batch_id: int`)
+                and a unidimensional tensor of token ids (`inputs_ids:
+                torch.Tensor`). It has to return a `List[int]` with the
+                allowed tokens for the next generation step conditioned
+                on the previously generated tokens (`inputs_ids`) and
+                the batch ID (`batch_id`). This argument is useful for
+                constrained generation conditioned on the prefix, as
+                described in "Autoregressive Entity Retrieval"
+                (https://arxiv.org/abs/2010.00904) and
+                https://github.com/facebookresearch/GENRE.
+        """
+        if getattr(args, "score_reference", False):
+            from fairseq.sequence_scorer import SequenceScorer
+
+            return SequenceScorer(
+                self.target_dictionary,
+                compute_alignment=getattr(args, "print_alignment", False),
+            )
+
+        from fairseq.sequence_generator import (
+            SequenceGenerator,
+            SequenceGeneratorWithAlignment,
+        )
+
+        # Choose search strategy. Defaults to Beam Search.
+        sampling = getattr(args, "sampling", False)
+        sampling_topk = getattr(args, "sampling_topk", -1)
+        sampling_topp = getattr(args, "sampling_topp", -1.0)
+        diverse_beam_groups = getattr(args, "diverse_beam_groups", -1)
+        diverse_beam_strength = getattr(args, "diverse_beam_strength", 0.5)
+        match_source_len = getattr(args, "match_source_len", False)
+        diversity_rate = getattr(args, "diversity_rate", -1)
+        constrained = getattr(args, "constraints", False)
+        if prefix_allowed_tokens_fn is None:
+            prefix_allowed_tokens_fn = getattr(args, "prefix_allowed_tokens_fn", None)
+        if (
+            sum(
+                int(cond)
+                for cond in [
+                    sampling,
+                    diverse_beam_groups > 0,
+                    match_source_len,
+                    diversity_rate > 0,
+                ]
+            )
+            > 1
+        ):
+            raise ValueError("Provided Search parameters are mutually exclusive.")
+        assert sampling_topk < 0 or sampling, "--sampling-topk requires --sampling"
+        assert sampling_topp < 0 or sampling, "--sampling-topp requires --sampling"
+
+        if sampling:
+            search_strategy = search.Sampling(
+                self.target_dictionary, sampling_topk, sampling_topp
+            )
+        elif diverse_beam_groups > 0:
+            search_strategy = search.DiverseBeamSearch(
+                self.target_dictionary, diverse_beam_groups, diverse_beam_strength
+            )
+        elif match_source_len:
+            # this is useful for tagging applications where the output
+            # length should match the input length, so we hardcode the
+            # length constraints for simplicity
+            search_strategy = search.LengthConstrainedBeamSearch(
+                self.target_dictionary,
+                min_len_a=1,
+                min_len_b=0,
+                max_len_a=1,
+                max_len_b=0,
+            )
+        elif diversity_rate > -1:
+            search_strategy = search.DiverseSiblingsSearch(
+                self.target_dictionary, diversity_rate
+            )
+        elif constrained:
+            search_strategy = search.LexicallyConstrainedBeamSearch(
+                self.target_dictionary, args.constraints
+            )
+        elif prefix_allowed_tokens_fn:
+            search_strategy = search.PrefixConstrainedBeamSearch(
+                self.target_dictionary, prefix_allowed_tokens_fn
+            )
+        else:
+            search_strategy = search.BeamSearch(self.target_dictionary)
+
+        extra_gen_cls_kwargs = extra_gen_cls_kwargs or {}
+        if seq_gen_cls is None:
+            if getattr(args, "print_alignment", False):
+                seq_gen_cls = SequenceGeneratorWithAlignment
+                extra_gen_cls_kwargs["print_alignment"] = args.print_alignment
+            else:
+                seq_gen_cls = EmbeddingGenerator
+
+        return seq_gen_cls(
+            models,
+            self.target_dictionary,
+            beam_size=getattr(args, "beam", 5),
+            max_len_a=getattr(args, "max_len_a", 0),
+            max_len_b=getattr(args, "max_len_b", 200),
+            min_len=getattr(args, "min_len", 1),
+            normalize_scores=(not getattr(args, "unnormalized", False)),
+            len_penalty=getattr(args, "lenpen", 1),
+            unk_penalty=getattr(args, "unkpen", 0),
+            temperature=getattr(args, "temperature", 1.0),
+            match_source_len=getattr(args, "match_source_len", False),
+            no_repeat_ngram_size=getattr(args, "no_repeat_ngram_size", 0),
+            search_strategy=search_strategy,
+            **extra_gen_cls_kwargs,
+        )
+
+@register_task("multilingual_embedding_creator")
+class MultilingualEmbeddingCreator(MultilingualTranslationTask):
+    def inference_step(
+        self, generator, models, sample, prefix_tokens=None, constraints=None
+    ):
+        with torch.no_grad():
+            if self.args.decoder_langtok:
+                bos_token = _lang_token_index(
+                    self.target_dictionary, self.args.target_lang
+                )
+            else:
+                bos_token = self.target_dictionary.eos()
+            encoder_outs = generator.generate(
+                models,
+                sample,
+                prefix_tokens=prefix_tokens,
+                constraints=constraints,
+                bos_token=bos_token,
+            )
+
+            # very very inefficient -> find a better way
+            with open(os.environ['CODE_EMBEDDING_PATH'], 'r+b') as f:
+                try:
+                    embeddings = pickle.load(f)
+                    embeddings.append(encoder_outs)
+                except EOFError:
+                    embeddings = [encoder_outs]
+                pickle.dump(embeddings, f)
+        return '  --  NOTHING BECAUSE EMBEDDINGS WHERE CREATED  --  '
+
+    def build_generator(
+        self,
+        models,
+        args,
+        seq_gen_cls=None,
+        extra_gen_cls_kwargs=None,
+        prefix_allowed_tokens_fn=None,
+    ):
+        """
+        Build a :class:`~fairseq.SequenceGenerator` instance for this
+        task.
+
+        Args:
+            models (List[~fairseq.models.FairseqModel]): ensemble of models
+            args (fairseq.dataclass.configs.GenerationConfig):
+                configuration object (dataclass) for generation
+            extra_gen_cls_kwargs (Dict[str, Any]): extra options to pass
+                through to SequenceGenerator
+            prefix_allowed_tokens_fn (Callable[[int, torch.Tensor], List[int]]):
+                If provided, this function constrains the beam search to
+                allowed tokens only at each step. The provided function
+                should take 2 arguments: the batch ID (`batch_id: int`)
+                and a unidimensional tensor of token ids (`inputs_ids:
+                torch.Tensor`). It has to return a `List[int]` with the
+                allowed tokens for the next generation step conditioned
+                on the previously generated tokens (`inputs_ids`) and
+                the batch ID (`batch_id`). This argument is useful for
+                constrained generation conditioned on the prefix, as
+                described in "Autoregressive Entity Retrieval"
+                (https://arxiv.org/abs/2010.00904) and
+                https://github.com/facebookresearch/GENRE.
+        """
+        if getattr(args, "score_reference", False):
+            from fairseq.sequence_scorer import SequenceScorer
+
+            return SequenceScorer(
+                self.target_dictionary,
+                compute_alignment=getattr(args, "print_alignment", False),
+            )
+
+        from fairseq.sequence_generator import (
+            SequenceGenerator,
+            SequenceGeneratorWithAlignment,
+        )
+
+        # Choose search strategy. Defaults to Beam Search.
+        sampling = getattr(args, "sampling", False)
+        sampling_topk = getattr(args, "sampling_topk", -1)
+        sampling_topp = getattr(args, "sampling_topp", -1.0)
+        diverse_beam_groups = getattr(args, "diverse_beam_groups", -1)
+        diverse_beam_strength = getattr(args, "diverse_beam_strength", 0.5)
+        match_source_len = getattr(args, "match_source_len", False)
+        diversity_rate = getattr(args, "diversity_rate", -1)
+        constrained = getattr(args, "constraints", False)
+        if prefix_allowed_tokens_fn is None:
+            prefix_allowed_tokens_fn = getattr(args, "prefix_allowed_tokens_fn", None)
+        if (
+            sum(
+                int(cond)
+                for cond in [
+                    sampling,
+                    diverse_beam_groups > 0,
+                    match_source_len,
+                    diversity_rate > 0,
+                ]
+            )
+            > 1
+        ):
+            raise ValueError("Provided Search parameters are mutually exclusive.")
+        assert sampling_topk < 0 or sampling, "--sampling-topk requires --sampling"
+        assert sampling_topp < 0 or sampling, "--sampling-topp requires --sampling"
+
+        if sampling:
+            search_strategy = search.Sampling(
+                self.target_dictionary, sampling_topk, sampling_topp
+            )
+        elif diverse_beam_groups > 0:
+            search_strategy = search.DiverseBeamSearch(
+                self.target_dictionary, diverse_beam_groups, diverse_beam_strength
+            )
+        elif match_source_len:
+            # this is useful for tagging applications where the output
+            # length should match the input length, so we hardcode the
+            # length constraints for simplicity
+            search_strategy = search.LengthConstrainedBeamSearch(
+                self.target_dictionary,
+                min_len_a=1,
+                min_len_b=0,
+                max_len_a=1,
+                max_len_b=0,
+            )
+        elif diversity_rate > -1:
+            search_strategy = search.DiverseSiblingsSearch(
+                self.target_dictionary, diversity_rate
+            )
+        elif constrained:
+            search_strategy = search.LexicallyConstrainedBeamSearch(
+                self.target_dictionary, args.constraints
+            )
+        elif prefix_allowed_tokens_fn:
+            search_strategy = search.PrefixConstrainedBeamSearch(
+                self.target_dictionary, prefix_allowed_tokens_fn
+            )
+        else:
+            search_strategy = search.BeamSearch(self.target_dictionary)
+
+        extra_gen_cls_kwargs = extra_gen_cls_kwargs or {}
+        if seq_gen_cls is None:
+            if getattr(args, "print_alignment", False):
+                seq_gen_cls = SequenceGeneratorWithAlignment
+                extra_gen_cls_kwargs["print_alignment"] = args.print_alignment
+            else:
+                seq_gen_cls = EmbeddingGenerator
+
+        return seq_gen_cls(
+            models,
+            self.target_dictionary,
+            beam_size=getattr(args, "beam", 5),
+            max_len_a=getattr(args, "max_len_a", 0),
+            max_len_b=getattr(args, "max_len_b", 200),
+            min_len=getattr(args, "min_len", 1),
+            normalize_scores=(not getattr(args, "unnormalized", False)),
+            len_penalty=getattr(args, "lenpen", 1),
+            unk_penalty=getattr(args, "unkpen", 0),
+            temperature=getattr(args, "temperature", 1.0),
+            match_source_len=getattr(args, "match_source_len", False),
+            no_repeat_ngram_size=getattr(args, "no_repeat_ngram_size", 0),
+            search_strategy=search_strategy,
+            **extra_gen_cls_kwargs,
+        )
 
 
 @register_model_architecture("encoder_decoder_lstm", "encoder_decoder_lstm")
