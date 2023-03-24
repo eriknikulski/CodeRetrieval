@@ -39,7 +39,7 @@ def analyze_vocab_dataset():
         train_data = pickle.load(train_file)
         train_data.enforce_length_constraints()
 
-    analyze_vocab(train_data.doc_lang.word2count)
+    analyze_vocab(train_data.lang.word2count)
     analyze_entries(train_data.df[['docstring_tokens']].applymap(len).to_list())
 
 
