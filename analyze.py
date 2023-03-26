@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from nltk.util import ngrams
 
 import const
-
+from loader import CodeDataset
 
 
 def analyze_vocab(vocab):
@@ -33,14 +33,18 @@ def analyze_entries(entries):
     print(f'Train data is of size: {len(entries)}')
 
 
-def analyze_vocab_dataset():
-    print('Reading train file...')
-    with open(const.DATA_TRAIN_PATH, 'rb') as train_file:
-        train_data = pickle.load(train_file)
-        train_data.enforce_length_constraints()
+def analyze_vocab_dataset(file_path=None):
+    if file_path:
+        print('Reading train file...')
+        with open(file_path, 'rb') as train_file:
+            train_data = pickle.load(train_file)
+            train_data.enforce_length_constraints()
+    else:
+        train_data = CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'train/',
+                                 to_tensors=False)
 
     analyze_vocab(train_data.lang.word2count)
-    analyze_entries(train_data.df[['docstring_tokens']].applymap(len).to_list())
+    analyze_entries(train_data.df['docstring_tokens'].map(len).to_list())
 
 
 def analyze_vocab_train_file(train_file_path=const.PREPROCESS_BPE_TRAIN_PATH):
