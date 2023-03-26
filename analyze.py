@@ -17,17 +17,23 @@ def analyze_vocab(vocab):
     x = vocab.values()
     plt.figure()
     n, bins, patches = plt.hist(x, num_bins, range=range_h, facecolor='blue', alpha=0.5)
+    plt.title('Vocabulary term occurrence')
+    plt.xlabel('term length')
+    plt.ylabel('frequency')
     plt.savefig(const.ANALYZE_VOCAB_HISTOGRAM)
 
     print(f'Train data vocab is of size: {len(vocab)}')
 
 
-def analyze_entries(entries):
+def analyze_entries(entries, title=None):
     print('Creating train data histogram...')
     num_bins = const.MAX_LENGTH_DOCSTRING
     range_h = [const.MIN_LENGTH_DOCSTRING, const.MAX_LENGTH_DOCSTRING]
     plt.figure()
     n, bins, patches = plt.hist(entries, num_bins, range=range_h, facecolor='blue', alpha=0.5)
+    plt.title(title)
+    plt.xlabel('sequence length')
+    plt.ylabel('frequency')
     plt.savefig(const.ANALYZE_DATA_HISTOGRAM)
 
     print(f'Train data is of size: {len(entries)}')
@@ -44,7 +50,8 @@ def analyze_vocab_dataset(file_path=None):
                                  to_tensors=False)
 
     analyze_vocab(train_data.lang.word2count)
-    analyze_entries(train_data.df['docstring_tokens'].map(len).to_list())
+    analyze_entries(train_data.df['docstring_tokens'].map(len).to_list(), title='Docstring sequence length')
+    analyze_entries(train_data.df['code_sequence'].map(len).to_list(), title='Code sequence length')
 
 
 def analyze_vocab_train_file(train_file_path=const.PREPROCESS_BPE_TRAIN_PATH):
