@@ -25,10 +25,11 @@ def analyze_vocab(vocab):
     print(f'Train data vocab is of size: {len(vocab)}')
 
 
-def analyze_entries(entries, title=None, save_path=const.ANALYZE_DATA_HISTOGRAM):
+def analyze_entries(entries, title=None, save_path=const.ANALYZE_DATA_HISTOGRAM,
+                    _min=const.MIN_LENGTH_DOCSTRING, _max=const.MAX_LENGTH_DOCSTRING):
     print('Creating train data histogram...')
-    num_bins = const.MAX_LENGTH_DOCSTRING
-    range_h = [const.MIN_LENGTH_DOCSTRING, const.MAX_LENGTH_DOCSTRING]
+    num_bins = _max
+    range_h = [_min, _max]
     plt.figure()
     n, bins, patches = plt.hist(entries, num_bins, range=range_h, facecolor='blue', alpha=0.5)
     plt.title(title)
@@ -53,7 +54,8 @@ def analyze_vocab_dataset(file_path=None):
     analyze_entries(train_data.df['docstring_tokens'].map(len).to_list(),
                     title='Docstring sequence length', save_path=const.ANALYZE_PATH + 'doc_hist.png')
     analyze_entries(train_data.df['code_sequence'].map(len).to_list(),
-                    title='Code sequence length', save_path=const.ANALYZE_PATH + 'code_hist.png')
+                    title='Code sequence length', save_path=const.ANALYZE_PATH + 'code_hist.png',
+                    _min=const.MIN_LENGTH_CODE, _max=const.MAX_LENGTH_CODE)
 
 
 def analyze_vocab_train_file(train_file_path=const.PREPROCESS_BPE_TRAIN_PATH):
