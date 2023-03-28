@@ -38,6 +38,8 @@ def analyze_entries(entries, title=None, save_path=const.ANALYZE_DATA_HISTOGRAM,
     plt.savefig(save_path)
 
     print(f'Train data is of size: {len(entries)}')
+    print(f'{sum(1 for el in entries if _min <= el <= _max)} entries are in range')
+    print(f'that are {sum(1 for el in entries if _min <= el <= _max) / len(entries) * 100}%')
 
 
 def analyze_vocab_dataset(file_path=None):
