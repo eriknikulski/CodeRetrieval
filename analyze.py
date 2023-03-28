@@ -28,7 +28,7 @@ def analyze_vocab(vocab):
 def analyze_entries(entries, title=None, save_path=const.ANALYZE_DATA_HISTOGRAM,
                     _min=const.MIN_LENGTH_DOCSTRING, _max=const.MAX_LENGTH_DOCSTRING):
     print('Creating train data histogram...')
-    num_bins = _max
+    num_bins = _max - _min
     range_h = [_min, _max]
     plt.figure()
     n, bins, patches = plt.hist(entries, num_bins, range=range_h, facecolor='blue', alpha=0.5)
@@ -126,6 +126,6 @@ if __name__ == '__main__':
         methode_name_occurrence(lower=2, upper=20)
     else:
         if args.type == 'dataset':
-            analyze_vocab_dataset()
+            analyze_vocab_dataset(file_path=const.DATA_TRAIN_PATH)
         else:
             analyze_vocab_train_file(args.file_path)
