@@ -15,14 +15,14 @@ def create_fairseq_data(data, output_file, item='code_sequence'):
 
 if __name__ == '__main__':
     args = parser.parse_args()
+    dirty = args.dirty
     data = args.data[0]
     if len(data) < 1 or len(data) > 2:
         raise Exception('Data argument should contain one or two values!')
 
     columns = {'doc': 'docstring_tokens', 'code': 'code_sequence'}
-    folder_path = const.DATA_FAIRSEQ_BASE_PATH + data[0] + '-' + data[-1] + '/'
-
-    dirty = args.dirty
+    dirty_str = dirty + '.' if dirty else ''
+    folder_path = const.DATA_FAIRSEQ_BASE_PATH + dirty_str + data[0] + '-' + data[-1] + '/'
 
     train_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'train/', to_tensors=False, dirty=dirty)
     train_data.enforce_length_constraints()
