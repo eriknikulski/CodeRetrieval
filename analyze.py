@@ -50,7 +50,7 @@ def analyze_vocab_dataset(file_path=None):
             train_data.enforce_length_constraints()
     else:
         train_data = CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'train/',
-                                 to_tensors=False)
+                                 to_tensors=False, verbose=True)
 
     analyze_vocab(train_data.lang.word2count)
     analyze_entries(train_data.df['docstring_tokens'].map(len).to_list(),
@@ -126,6 +126,7 @@ if __name__ == '__main__':
         methode_name_occurrence(lower=2, upper=20)
     else:
         if args.type == 'dataset':
-            analyze_vocab_dataset(file_path=const.DATA_TRAIN_PATH)
+            analyze_vocab_dataset()
         else:
-            analyze_vocab_train_file(args.file_path)
+            file_path = getattr(args, 'file_path', const.DATA_TRAIN_PATH)
+            analyze_vocab_train_file(file_path)
