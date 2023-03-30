@@ -21,7 +21,7 @@ if __name__ == '__main__':
         raise Exception('Data argument should contain one or two values!')
 
     columns = {'doc': 'docstring_tokens', 'code': 'code_sequence'}
-    dirty_str = dirty + '.' if dirty else ''
+    dirty_str = 'dirty.' if dirty else ''
     folder_path = const.DATA_FAIRSEQ_BASE_PATH + dirty_str + data[0] + '-' + data[-1] + '/'
 
     train_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'train/', to_tensors=False, dirty=dirty)
