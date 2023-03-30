@@ -47,9 +47,10 @@ class CodeDataset(Dataset):
                  min_tokens_docstring=const.MIN_LENGTH_DOCSTRING, max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
                  min_tokens_code=const.MIN_LENGTH_CODE, max_tokens_code=const.MAX_LENGTH_CODE,
                  cut_lengths=const.CUT_LENGTHS, language=None, build_language=True, to_tensors=True,
-                 remove_duplicates=True, create_negatives=False, verbose=False):
+                 remove_duplicates=True, create_negatives=False, dirty=False, verbose=False):
         self.path = path
         self.negatives = create_negatives
+        self.dirty = dirty
         self.lang = language if language else None
         self.working_items = ['docstring_tokens', 'docstring_tokens_length', 'code_sequence', 'code_sequence_length',
                               'methode_name', 'methode_name_length', 'code_tokens', 'code_tokens_length']
@@ -61,6 +62,12 @@ class CodeDataset(Dataset):
             print(f'length of the data set is {len(self.df)}')
             print(f'mean length of docstring tokens is {self.df[["docstring_tokens"]].applymap(len).mean().values[0]}')
             print(f'mean length of code tokens is {self.df[["code_tokens"]].applymap(len).mean().values[0]}')
+
+        if self.dirty:
+            self.df[['code_sequence']] = self.df[['code_tokens']]
+            self.df = self.df[self.working_items]
+            print(f'{self.__len__()} elements loaded!\n')
+            return
 
 
         self.df[['docstring_tokens']] = self.df[['docstring_tokens']].applymap(transform)

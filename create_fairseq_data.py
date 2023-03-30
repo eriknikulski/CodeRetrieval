@@ -6,6 +6,7 @@ import loader
 
 parser = argparse.ArgumentParser(description='Creates dataset necessary for fairseq-preprocess')
 parser.add_argument('-d', '--data', choices=['doc', 'code'], action='append', nargs='*', help='The data to be used.')
+parser.add_argument('-dirty', '--dirty', action='store_true', help='Keep the original dataset ond don\'t do preprocessing')
 
 def create_fairseq_data(data, output_file, item='code_sequence'):
     with open(output_file, 'w+') as fairseq_file:
@@ -21,11 +22,13 @@ if __name__ == '__main__':
     columns = {'doc': 'docstring_tokens', 'code': 'code_sequence'}
     folder_path = const.DATA_FAIRSEQ_BASE_PATH + data[0] + '-' + data[-1] + '/'
 
-    train_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'train/', to_tensors=False)
+    dirty = args.dirty
+
+    train_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'train/', to_tensors=False, dirty=dirty)
     train_data.enforce_length_constraints()
-    valid_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'valid/', to_tensors=False)
+    valid_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'valid/', to_tensors=False, dirty=dirty)
     valid_data.enforce_length_constraints()
-    test_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/', to_tensors=False)
+    test_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/', to_tensors=False, dirty=dirty)
     test_data.enforce_length_constraints()
 
     for elem in data:
