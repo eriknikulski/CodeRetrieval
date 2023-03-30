@@ -51,13 +51,14 @@ class CodeDataset(Dataset):
         self.path = path
         self.negatives = create_negatives
         self.dirty = dirty
+        self.verbose = verbose
         self.lang = language if language else None
         self.working_items = ['docstring_tokens', 'docstring_tokens_length', 'code_sequence', 'code_sequence_length',
                               'methode_name', 'methode_name_length', 'code_tokens', 'code_tokens_length']
 
         self.df = read_folder(RichPath.create(path))
 
-        if verbose:
+        if self.verbose:
             print('\nInitial information:')
             print(f'length of the data set is {len(self.df)}')
             print(f'mean length of docstring tokens is {self.df[["docstring_tokens"]].applymap(len).mean().values[0]}')
@@ -75,7 +76,7 @@ class CodeDataset(Dataset):
         self.df[['methode_name']] = self.df[['func_name']].applymap(get_methode_name)
         self.df[['code_tokens']] = self.df[['code']].applymap(get_code_tokens)
 
-        if verbose:
+        if self.verbose:
             print('\nInformation after applying transformation functions:')
             print(f'length of the data set is {len(self.df)}')
             print(f'mean length of docstring tokens is {self.df[["docstring_tokens"]].applymap(len).mean().values[0]}')
@@ -84,7 +85,7 @@ class CodeDataset(Dataset):
         self.enforce_length_constraints(min_tokens_docstring, max_tokens_docstring, min_tokens_code,  max_tokens_code,
                                         cut_lengths)
 
-        if verbose:
+        if self.verbose:
             print('\nInformation after enforcing length constraints on the dataset:')
             print(f'length of the data set is {len(self.df)}')
             print(f'mean length of docstring tokens is {self.df[["docstring_tokens"]].applymap(len).mean().values[0]}')
@@ -97,7 +98,7 @@ class CodeDataset(Dataset):
 
         self.df.reset_index(drop=True, inplace=True)
 
-        if verbose:
+        if self.verbose:
             print('\nInformation after removing duplicates:')
             print(f'length of the data set is {len(self.df)}')
             print(f'mean length of docstring tokens is {self.df[["docstring_tokens"]].applymap(len).mean().values[0]}')
@@ -224,12 +225,30 @@ class CodeDataset(Dataset):
             self.df[doc_items] = self.df[doc_items].applymap(lambda x: x[:max_tokens_docstring - 1])
             self.df[code_items] = self.df[code_items].applymap(lambda x: x[:max_tokens_code - 1])
         else:
+            if self.verbose:
+                orig_length = len(self.df)
+                doc_red_count = len(self.df[
+                    (self.df['docstring_tokens'].map(len) <= max_tokens_docstring) &
+                    (self.df['docstring_tokens'].map(len) >= min_tokens_docstring)])
+                print(f'\'docstring_tokens\' column was reduced from {orig_length} to {doc_red_count}; '
+                      f'that is {doc_red_count / orig_length * 100}%')
+                code_red_count = len(self.df[
+                    (self.df['code_sequence'].map(len) <= max_tokens_code) &
+                    (self.df['code_sequence'].map(len) >= min_tokens_code)])
+                print(f'\'docstring_tokens\' column was reduced from {orig_length} to {code_red_count}; '
+                      f'that is {code_red_count / orig_length * 100}%')
+
             self.df = self.df[
                 (self.df['docstring_tokens'].map(len) <= max_tokens_docstring) &
                 (self.df['docstring_tokens'].map(len) >= min_tokens_docstring)]
             self.df = self.df[
                 (self.df['code_sequence'].map(len) <= max_tokens_code) &
                 (self.df['code_sequence'].map(len) >= min_tokens_code)]
+
+            if self.verbose:
+                length = len(self.df)
+                print(f'after applying length constraints df was reduced from {orig_length} to {length};'
+                      f'that is {length / orig_length * 100}%')
 
     def _enforce_length_constraints_list(self, min_tokens_docstring=const.MIN_LENGTH_DOCSTRING,
                                          max_tokens_docstring=const.MAX_LENGTH_DOCSTRING,
