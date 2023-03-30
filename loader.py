@@ -66,7 +66,6 @@ class CodeDataset(Dataset):
 
         if self.dirty:
             self.df[['code_sequence']] = self.df[['code_tokens']]
-            self.df = self.df[self.working_items]
             print(f'{self.__len__()} elements loaded!\n')
             return
 
