@@ -25,11 +25,12 @@ if __name__ == '__main__':
     folder_path = const.DATA_FAIRSEQ_BASE_PATH + dirty_str + data[0] + '-' + data[-1] + '/'
 
     train_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'train/', to_tensors=False, dirty=dirty)
-    train_data.enforce_length_constraints()
     valid_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'valid/', to_tensors=False, dirty=dirty)
-    valid_data.enforce_length_constraints()
     test_data = loader.CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'test/', to_tensors=False, dirty=dirty)
-    test_data.enforce_length_constraints()
+    if not dirty:
+        train_data.enforce_length_constraints()
+        valid_data.enforce_length_constraints()
+        test_data.enforce_length_constraints()
 
     for elem in data:
         train_path = folder_path + 'train.' + elem
