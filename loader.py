@@ -234,7 +234,7 @@ class CodeDataset(Dataset):
                 code_red_count = len(self.df[
                     (self.df['code_sequence'].map(len) <= max_tokens_code) &
                     (self.df['code_sequence'].map(len) >= min_tokens_code)])
-                print(f'\'docstring_tokens\' column was reduced from {orig_length} to {code_red_count}; '
+                print(f'\'code_sequence\' column was reduced from {orig_length} to {code_red_count}; '
                       f'that is {code_red_count / orig_length * 100}%')
 
             self.df = self.df[
