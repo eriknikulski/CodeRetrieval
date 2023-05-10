@@ -72,6 +72,14 @@ def run(args):
     test_data.build_language(language=lang)
     valid_data.build_language(language=lang)
 
+    print('write csv files...')
+    with open(const.DATA_PATH + 'code_sequences.csv', 'w') as f:
+        f.write(train_data.df[['code_sequence']].applymap(' '.join).to_csv())
+    with open(const.DATA_PATH + 'code_tokens.csv', 'w') as f:
+        f.write(train_data.df[['code_tokens']].applymap(' '.join).to_csv())
+    with open(const.DATA_PATH + 'methode_name.csv', 'w') as f:
+        f.write(train_data.df[['methode_name']].applymap(' '.join).to_csv())
+
     print('Converting to tensors...')
     train_data.to_tensors()
     test_data.to_tensors()

@@ -57,6 +57,12 @@ def make_batches(lines, cfg, task, max_positions, encode_fn):
     def encode_fn_target(x):
         return encode_fn(x)
 
+    urls = []
+    for i, line in enumerate(lines):
+        if ' | ' in line:
+            url, line = line.split(' | ', 1)
+            urls.append(url)
+
     if cfg.generation.constraints:
         # Strip (tab-delimited) contraints, if present, from input lines,
         # store them in batch_constraints
@@ -92,7 +98,7 @@ def make_batches(lines, cfg, task, max_positions, encode_fn):
         max_positions=max_positions,
         ignore_invalid_inputs=cfg.dataset.skip_invalid_size_inputs_valid_test,
     ).next_epoch_itr(shuffle=False)
-    for batch in itr:
+    for i, batch in enumerate(itr):
         ids = batch["id"]
         src_tokens = batch["net_input"]["src_tokens"]
         src_lengths = batch["net_input"]["src_lengths"]
@@ -103,7 +109,7 @@ def make_batches(lines, cfg, task, max_positions, encode_fn):
             src_tokens=src_tokens,
             src_lengths=src_lengths,
             constraints=constraints,
-        )
+        ), urls[i]
 
 
 def main(cfg: FairseqConfig):
@@ -208,7 +214,7 @@ def main(cfg: FairseqConfig):
     embeddings = []
     for inputs in buffered_read(cfg.interactive.input, cfg.interactive.buffer_size):
         results = []
-        for batch in make_batches(inputs, cfg, task, max_positions, encode_fn):
+        for batch, urls in make_batches(inputs, cfg, task, max_positions, encode_fn):
             bsz = batch.src_tokens.size(0)
             src_tokens = batch.src_tokens
             src_lengths = batch.src_lengths
@@ -228,7 +234,7 @@ def main(cfg: FairseqConfig):
             translate_start_time = time.time()
             embeddings.append(task.inference_step(
                 generator, models, sample, constraints=constraints
-            ))
+            ) + [urls])
 
         # update running id_ counter
         start_id += len(inputs)

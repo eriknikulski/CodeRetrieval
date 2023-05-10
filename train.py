@@ -376,7 +376,8 @@ def run(args):
         data_path = const.SYNTH_PATH
 
     remove_duplicates = not args.keep_duplicates
-    arch_mode = model.Architecture.Mode(args.architecture)
+    # arch_mode = model.Architecture.Mode(args.architecture)
+    arch_mode = model.Architecture.Mode('code_code')
     const.SIMPLE_CODE_ENCODER = args.simple_code_encoder
 
     const.CUDA_DEVICE_COUNT = torch.cuda.device_count()

@@ -516,7 +516,7 @@ class MultilingualTranslationWithRetrievalInferenceTask(MultilingualTranslationT
                 )
             else:
                 bos_token = self.target_dictionary.eos()
-            _, encoder_outs = generator.generate(
+            generator_out = generator.generate(
                 models,
                 sample,
                 prefix_tokens=prefix_tokens,
@@ -524,19 +524,34 @@ class MultilingualTranslationWithRetrievalInferenceTask(MultilingualTranslationT
                 bos_token=bos_token,
             )
 
-            best = []
-            for code_seq, code_embed in self.code_embeddings:
-                val = F.cosine_similarity(encoder_outs[0][1], code_embed[0][1])
-                if len(best) < int(os.environ['RETRIEVAL_COUNT']):
-                    best.append([val, code_seq])
-                    continue
-                # TODO: compairisone does not work! val is Tensor
-                if val > best[0][0]:
-                    best[0] = [val, code_seq]
-                    best.sort(key=lambda x: x[0])
+            _, encoder_outs = generator_out
 
-        # or change to return complete list
-        return best[-1]
+            _, sample_final_hiddens, _, _ = encoder_outs[0]     # Batch size needs to be 1
+
+            best = []
+            for code_seq, code_embed, url in self.code_embeddings:
+                _, code_final_hiddens, _, _ = code_embed[0]     # Batch size needs to be 1
+                val = F.cosine_similarity(sample_final_hiddens[-1], code_final_hiddens[-1])
+                if len(best) < int(os.environ['RETRIEVAL_COUNT']):
+                    best.append({
+                        "tokens": code_seq,
+                        "score": val,
+                        "url": url,
+                        "alignment": torch.empty(0),
+                        "positional_scores": torch.empty(0),
+                    })
+                    continue
+                if val > best[0]["score"]:
+                    best[0] = {
+                        "tokens": code_seq,
+                        "score": val,
+                        "url": url,
+                        "alignment": torch.empty(0),
+                        "positional_scores": torch.empty(0),
+                    }
+                    best.sort(key=lambda x: x["score"])
+
+        return [best]           # Batch size needs to be 1
 
     def build_generator(
         self,
