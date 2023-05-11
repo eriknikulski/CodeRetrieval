@@ -514,7 +514,7 @@ class MultilingualTranslationWithRetrievalInferenceTask(MultilingualTranslationT
         if self.code_embeddings is None:
             self.code_embeddings = self.get_code_embeddings()
         if self.code_hidden is None:
-            self.code_hidden = self.get_code_hidden()
+            self.code_hidden = F.normalize(self.get_code_hidden())
 
         with torch.no_grad():
             if self.args.decoder_langtok:
@@ -535,7 +535,7 @@ class MultilingualTranslationWithRetrievalInferenceTask(MultilingualTranslationT
 
             _, sample_final_hiddens, _, _ = encoder_outs[0]     # Batch size needs to be 1
 
-            sims = F.cosine_similarity(sample_final_hiddens[-1], self.code_hidden)
+            sims = torch.matmul(F.normalize(torch.squeeze(sample_final_hiddens[-1]), dim=0), self.code_hidden.T)
             indices = torch.topk(sims, int(os.environ['RETRIEVAL_COUNT'])).indices
 
             best = [{"tokens": self.code_embeddings[i][0],
