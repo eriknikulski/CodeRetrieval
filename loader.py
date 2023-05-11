@@ -54,7 +54,7 @@ class CodeDataset(Dataset):
         self.verbose = verbose
         self.lang = language if language else None
         self.working_items = ['docstring_tokens', 'docstring_tokens_length', 'code_sequence', 'code_sequence_length',
-                              'methode_name', 'methode_name_length', 'code_tokens', 'code_tokens_length']
+                              'methode_name', 'methode_name_length', 'code_tokens', 'code_tokens_length', 'url']
 
         self.df = read_folder(RichPath.create(path))
 
