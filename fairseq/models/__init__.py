@@ -497,17 +497,24 @@ class MultilingualTranslationWithRetrievalInferenceTask(MultilingualTranslationT
     def __init__(self, args, dicts, training):
         super().__init__(args, dicts, training)
         self.code_embeddings = None
+        self.code_hidden = None
 
     @staticmethod
     def get_code_embeddings():
         with open(os.environ['CODE_EMBEDDING_PATH'], 'rb') as f:
             return pickle.load(f)
 
+    def get_code_hidden(self):
+        return torch.cat(
+            [code_final_hiddens[-1] for code_seq, [[_, code_final_hiddens, _, _]], url in self.code_embeddings])
+
     def inference_step(
         self, generator, models, sample, prefix_tokens=None, constraints=None
     ):
         if self.code_embeddings is None:
             self.code_embeddings = self.get_code_embeddings()
+        if self.code_hidden is None:
+            self.code_hidden = self.get_code_hidden()
 
         with torch.no_grad():
             if self.args.decoder_langtok:
@@ -528,28 +535,15 @@ class MultilingualTranslationWithRetrievalInferenceTask(MultilingualTranslationT
 
             _, sample_final_hiddens, _, _ = encoder_outs[0]     # Batch size needs to be 1
 
-            best = []
-            for code_seq, code_embed, url in self.code_embeddings:
-                _, code_final_hiddens, _, _ = code_embed[0]     # Batch size needs to be 1
-                val = F.cosine_similarity(sample_final_hiddens[-1], code_final_hiddens[-1])
-                if len(best) < int(os.environ['RETRIEVAL_COUNT']):
-                    best.append({
-                        "tokens": code_seq,
-                        "score": val,
-                        "url": url,
+            sims = F.cosine_similarity(sample_final_hiddens[-1], self.code_hidden)
+            indices = torch.topk(sims, int(os.environ['RETRIEVAL_COUNT'])).indices
+
+            best = [{"tokens": self.code_embeddings[i][0],
+                        "score": sims[i],
+                        "url": self.code_embeddings[i][2],
                         "alignment": torch.empty(0),
-                        "positional_scores": torch.empty(0),
-                    })
-                    continue
-                if val > best[0]["score"]:
-                    best[0] = {
-                        "tokens": code_seq,
-                        "score": val,
-                        "url": url,
-                        "alignment": torch.empty(0),
-                        "positional_scores": torch.empty(0),
-                    }
-                    best.sort(key=lambda x: x["score"])
+                        "positional_scores": torch.empty(0),}
+                    for i in indices]
 
         return [best]           # Batch size needs to be 1
 
