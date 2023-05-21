@@ -101,9 +101,9 @@ def normalize_docstring(s):
     s = s.replace('< /', '</')
     s = BeautifulSoup(s, features='html.parser').get_text().strip()
     # removes all doc annotations of the form { @someword }
-    s = re.sub(r'\{\s?@\w+\s?}', r' ', s)
+    s = re.sub(r'\{\s?@\s?\w+\s?}', r' ', s)
     # replace all doc annotations of the form { @someword _content } with _content
-    s = re.sub(r'\{\s?@\w+\s([^}]*)\s?}', r'\1', s)
+    s = re.sub(r'\{\s?@\s?\w+\s([^}]*)\s?}', r'\1', s)
     # remove everything that has some form of 'non - javadoc' in it
     s = re.sub(r'.*\( non - javadoc \).*', r'', s)
     s = re.sub(r'@deprecated.*', r'', s)
