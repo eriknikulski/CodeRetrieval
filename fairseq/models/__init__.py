@@ -539,10 +539,10 @@ class MultilingualTranslationWithRetrievalInferenceTask(MultilingualTranslationT
             indices = torch.topk(sims, int(os.environ['RETRIEVAL_COUNT'])).indices
 
             best = [{"tokens": self.code_embeddings[i][0],
-                        "score": sims[i],
-                        "url": self.code_embeddings[i][2],
-                        "alignment": torch.empty(0),
-                        "positional_scores": torch.empty(0),}
+                     "score": sims[i],
+                     "url": self.code_embeddings[i][2],
+                     "alignment": torch.empty(0),
+                     "positional_scores": torch.empty(0),}
                     for i in indices]
 
         return [best]           # Batch size needs to be 1
