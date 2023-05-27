@@ -207,7 +207,7 @@ class EncoderDecoderLSTMModel(FairseqEncoderDecoderModel):
         return decoder_out
 
 
-@register_model("multilingual_lstm")
+@register_model("dual_encoder_decoder_lstm")
 class MultilingualLSTMModel(FairseqMultiModel):
     """Train Transformer models for multiple language pairs simultaneously.
     Requires `--task multilingual_translation`.
@@ -865,7 +865,7 @@ def encoder_decoder_lstm(args):
         args, "adaptive_softmax_cutoff", "10000,50000,200000"
     )
 
-@register_model_architecture("multilingual_lstm", "multilingual_lstm")
+@register_model_architecture("dual_encoder_decoder_lstm", "dual_encoder_decoder_lstm")
 def base_multilingual_architecture(args):
     encoder_decoder_lstm(args)
     args.share_encoder_embeddings = getattr(args, "share_encoder_embeddings", False)
