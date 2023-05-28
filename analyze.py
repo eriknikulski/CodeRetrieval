@@ -54,10 +54,10 @@ def analyze_vocab_dataset(file_path=None):
 
     analyze_vocab(train_data.lang.word2count)
     analyze_entries(train_data.df['docstring_tokens'].map(len).to_list(),
-                    title='Docstring sequence length', save_path=const.ANALYZE_PATH + 'doc_hist.png')
+                    title='Docstring sequence length', save_path=const.ANALYZE_PATH + 'doc_hist.pdf', lines=[3, 25])
     analyze_entries(train_data.df['code_sequence'].map(len).to_list(),
-                    title='Code sequence length', save_path=const.ANALYZE_PATH + 'code_hist.png',
-                    _min=const.MIN_LENGTH_CODE, _max=const.MAX_LENGTH_CODE)
+                    title='Code sequence length', save_path=const.ANALYZE_PATH + 'code_hist.pdf',
+                    _min=const.MIN_LENGTH_CODE, _max=const.MAX_LENGTH_CODE, lines=[20, 100])
 
 
 def analyze_vocab_train_file(train_file_path=const.PREPROCESS_BPE_TRAIN_PATH):
