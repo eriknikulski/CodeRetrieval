@@ -26,7 +26,7 @@ def analyze_vocab(vocab):
 
 
 def analyze_entries(entries, title=None, save_path=const.ANALYZE_DATA_HISTOGRAM,
-                    _min=const.MIN_LENGTH_DOCSTRING, _max=const.MAX_LENGTH_DOCSTRING):
+                    _min=const.MIN_LENGTH_DOCSTRING, _max=const.MAX_LENGTH_DOCSTRING, lines=[]):
     print('Creating train data histogram...')
     num_bins = _max - _min
     range_h = [_min, _max]
@@ -35,6 +35,10 @@ def analyze_entries(entries, title=None, save_path=const.ANALYZE_DATA_HISTOGRAM,
     plt.title(title)
     plt.xlabel('sequence length')
     plt.ylabel('frequency')
+
+    for line in lines:
+        plt.axvline(line, color='k', linestyle='dashed', linewidth=1)
+
     plt.savefig(save_path)
 
     print(f'Train data is of size: {len(entries)}')
