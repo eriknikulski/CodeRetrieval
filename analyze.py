@@ -31,7 +31,7 @@ def analyze_entries(entries, title=None, save_path=const.ANALYZE_DATA_HISTOGRAM,
     num_bins = _max - _min
     range_h = [_min, _max]
     plt.figure()
-    n, bins, patches = plt.hist(entries, num_bins, range=range_h, facecolor='blue', alpha=0.5)
+    n, bins, patches = plt.hist(entries, num_bins, range=range_h, facecolor='blue', alpha=0.5, histtype='stepfilled')
     plt.title(title)
     plt.xlabel('sequence length')
     plt.ylabel('frequency')
