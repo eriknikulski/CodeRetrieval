@@ -16,16 +16,19 @@ import pickle
 import sys
 import time
 from argparse import Namespace
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 import numpy as np
 import torch
 
 from fairseq import checkpoint_utils, distributed_utils, options, tasks, utils
+from fairseq.data import RoundRobinZipDatasets
 from fairseq.dataclass.configs import FairseqConfig
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 from fairseq.token_generation_constraints import pack_constraints, unpack_constraints
 from fairseq_cli.generate import get_symbols_to_strip_from_output
+
+from language_triple_dataset import LanguageTripleDataset
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -36,7 +39,7 @@ logging.basicConfig(
 logger = logging.getLogger("fairseq_cli.interactive")
 
 
-Batch = namedtuple("Batch", "ids src_tokens src_lengths constraints")
+Batch = namedtuple("Batch", "ids src_tokens src_lengths urls constraints")
 Translation = namedtuple("Translation", "src_str hypos pos_scores alignments")
 
 
@@ -52,6 +55,72 @@ def buffered_read(input, buffer_size):
     if len(buffer) > 0:
         yield buffer
 
+def filter_indices_by_size(self, indices, max_positions=None):
+    """
+    Filter each sub-dataset independently, then update the round robin to work
+    on the filtered sub-datasets.
+    """
+
+    def _deep_until_language_pair(dataset):
+        if isinstance(dataset, LanguageTripleDataset):
+            return dataset
+        if hasattr(dataset, "tgt_dataset"):
+            return _deep_until_language_pair(dataset.tgt_dataset)
+        if hasattr(dataset, "dataset"):
+            return _deep_until_language_pair(dataset.dataset)
+        raise Exception(f"Don't know how to unwrap this dataset: {dataset}")
+
+    if not isinstance(max_positions, dict):
+        max_positions = {k: max_positions for k in self.datasets.keys()}
+    ignored_some = False
+    for key, dataset in self.datasets.items():
+        dataset = _deep_until_language_pair(dataset)
+        self._ordered_indices[key], ignored = dataset.filter_indices_by_size(
+            self._ordered_indices[key], max_positions[key]
+        )
+        if len(ignored) > 0:
+            ignored_some = True
+            logger.warning(
+                f"{len(ignored)} samples from {key} have invalid sizes and will be skipped, "
+                f"max_positions={max_positions[key]}, first few sample ids={ignored[:10]}"
+            )
+    # Since we are modifying in place the _ordered_indices,
+    # it's not possible anymore to return valid ignored indices.
+    # Hopefully the extra debug information print above should be enough to debug.
+    # Ideally we would receive ignore_invalid_inputs so that we could have
+    # a proper error message.
+    return (np.arange(len(self)), [0] if ignored_some else [])
+
+def build_dataset_for_inference(task, src_tokens, src_lengths, urls, constraints=None):
+        if constraints is not None:
+            raise NotImplementedError(
+                "Constrained decoding with the multilingual_translation task is not supported"
+            )
+
+        lang_pair = "%s-%s" % (task.args.source_lang, task.args.target_lang)
+        round_robin_dataset = RoundRobinZipDatasets(
+            OrderedDict(
+                [
+                    (
+                        lang_pair,
+                        task.alter_dataset_langtok(
+                            LanguageTripleDataset(
+                                src_tokens, src_lengths, task.source_dictionary, urls=urls
+                            ),
+                            src_eos=task.source_dictionary.eos(),
+                            src_lang=task.args.source_lang,
+                            tgt_eos=task.target_dictionary.eos(),
+                            tgt_lang=task.args.target_lang,
+                        ),
+                    )
+                ]
+            ),
+            eval_key=lang_pair,
+        )
+
+        RoundRobinZipDatasets.filter_indices_by_size = filter_indices_by_size
+
+        return round_robin_dataset
 
 def make_batches(lines, cfg, task, max_positions, encode_fn):
     def encode_fn_target(x):
@@ -60,8 +129,10 @@ def make_batches(lines, cfg, task, max_positions, encode_fn):
     urls = []
     for i, line in enumerate(lines):
         if ' | ' in line:
-            url, line = line.split(' | ', 1)
+            url, lines[i] = line.split(' | ', 1)
             urls.append(url)
+        else:
+            urls.append('')
 
     if cfg.generation.constraints:
         # Strip (tab-delimited) contraints, if present, from input lines,
@@ -90,8 +161,8 @@ def make_batches(lines, cfg, task, max_positions, encode_fn):
     tokens, lengths = task.get_interactive_tokens_and_lengths(lines, encode_fn)
 
     itr = task.get_batch_iterator(
-        dataset=task.build_dataset_for_inference(
-            tokens, lengths, constraints=constraints_tensor
+        dataset=build_dataset_for_inference(
+            task, tokens, lengths, urls, constraints=constraints_tensor
         ),
         max_tokens=cfg.dataset.max_tokens,
         max_sentences=cfg.dataset.batch_size,
@@ -102,14 +173,16 @@ def make_batches(lines, cfg, task, max_positions, encode_fn):
         ids = batch["id"]
         src_tokens = batch["net_input"]["src_tokens"]
         src_lengths = batch["net_input"]["src_lengths"]
+        urls = batch["net_input"]["urls"]
         constraints = batch.get("constraints", None)
 
         yield Batch(
             ids=ids,
             src_tokens=src_tokens,
             src_lengths=src_lengths,
+            urls=urls,
             constraints=constraints,
-        ), urls[i]
+        )
 
 
 def main(cfg: FairseqConfig):
@@ -214,10 +287,11 @@ def main(cfg: FairseqConfig):
     embeddings = []
     for inputs in buffered_read(cfg.interactive.input, cfg.interactive.buffer_size):
         results = []
-        for batch, urls in make_batches(inputs, cfg, task, max_positions, encode_fn):
+        for batch in make_batches(inputs, cfg, task, max_positions, encode_fn):
             bsz = batch.src_tokens.size(0)
             src_tokens = batch.src_tokens
             src_lengths = batch.src_lengths
+            urls = batch.urls
             constraints = batch.constraints
             if use_cuda:
                 src_tokens = src_tokens.cuda()
@@ -234,7 +308,7 @@ def main(cfg: FairseqConfig):
             translate_start_time = time.time()
             embeddings.append(task.inference_step(
                 generator, models, sample, constraints=constraints
-            ) + [urls])
+            ) + urls)
 
         # update running id_ counter
         start_id += len(inputs)
