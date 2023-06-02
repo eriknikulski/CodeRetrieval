@@ -46,7 +46,7 @@ def analyze_entries(entries, title=None, save_path=const.ANALYZE_DATA_HISTOGRAM,
     print(f'that are {sum(1 for el in entries if _min <= el <= _max) / len(entries) * 100}%')
 
 
-def analyze_vocab_dataset(file_path=None):
+def analyze_vocab_dataset(file_path=None, remove_duplicates=True):
     if file_path:
         print('Reading train file...')
         with open(file_path, 'rb') as train_file:
@@ -54,7 +54,7 @@ def analyze_vocab_dataset(file_path=None):
             train_data.enforce_length_constraints()
     else:
         train_data = CodeDataset(const.PROJECT_PATH + const.JAVA_PATH + 'train/',
-                                 to_tensors=False, verbose=True)
+                                 to_tensors=False, remove_duplicates=remove_duplicates, verbose=True)
 
     analyze_vocab(train_data.lang.word2count)
     analyze_entries(train_data.df['docstring_tokens'].map(len).to_list(),
@@ -120,6 +120,7 @@ parser = argparse.ArgumentParser(description='ML model for sequence to sequence 
 parser.add_argument('-task', '--task', choices=['vocab', 'ngram'], help='What to analyze')
 parser.add_argument('-t', '--type', choices=['dataset', 'file'], help='Chose either dataset or file. When task is vocab.')
 parser.add_argument('-p', '--file-path', help='The file path to be used if type is file')
+parser.add_argument('-kd', '--keep-duplicates', action='store_true', help='The dataset is created without duplicate removal')
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -130,7 +131,7 @@ if __name__ == '__main__':
         methode_name_occurrence(lower=2, upper=20)
     else:
         if args.type == 'dataset':
-            analyze_vocab_dataset()
+            analyze_vocab_dataset(remove_duplicates=not args.keep_duplicates)
         else:
             file_path = getattr(args, 'file_path', const.DATA_TRAIN_PATH)
             analyze_vocab_train_file(file_path)
