@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import const
 import loader
@@ -11,6 +12,7 @@ parser.add_argument('-u', '--urls', action='store_true', default=False,
                     help='Whether to also store urls alongside the sequences')
 
 def create_fairseq_data(data, output_file, item='code_sequence', store_urls=False):
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, 'w+') as fairseq_file:
         fairseq_file.writelines([f'{str(elem["url"]) + " | " if store_urls else ""}'
                                  f'{" ".join(elem[item])}\n' for i, elem in data.df.iterrows()])
