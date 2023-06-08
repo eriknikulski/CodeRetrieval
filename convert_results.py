@@ -1,5 +1,6 @@
 import argparse
 import csv
+import os
 
 parser = argparse.ArgumentParser(
     description='Converts inference output file into a prediction file for the evaluation script')
@@ -16,6 +17,7 @@ def read_file(path):
 def write_file(data, path):
     if len(data) == 0:
         return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'w') as f:
         writer = csv.DictWriter(f, fieldnames=data[0].keys())
         writer.writeheader()
