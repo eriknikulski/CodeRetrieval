@@ -27,8 +27,8 @@ However, if you are not using GPUs the training will probably take forever.
 If you want to use WandB you need to set the variable ```WANDB_PROJECT``` to the name of your project in the training script.
 
 ### Preprocessing and Training
-Run ```./scripts/fairseq-train.sh``` to run the dual Encoder-Decoder LSTM-based model.
-Or run ```./scripts/fairseq-train-transformer.sh``` to run the dual Encoder-Decoder Transformer-based model.
+Run ```./scripts/train.sh``` to run the dual Encoder-Decoder LSTM-based model.
+Or run ```./scripts/train-transformer.sh``` to run the dual Encoder-Decoder Transformer-based model.
 
 Flags are:  
 ```-p```, this enables preprocessing and creates the datasets needed for training.  
@@ -44,10 +44,10 @@ Note that right now only source code embeddings are created.
 If you want to change this, alter the script.
 You also may want to change the variable ```$MODEL_CHECKPOINT``` in the script to match the model from training.
 
-Run ```./scripts/fairseq-create-embeddings.sh``` to create the embeddings.
+Run ```./scripts/create-embeddings.sh``` to create the embeddings.
 
 ### Retrieval / Inference
-Run ```./scripts/fairseq-infer.sh``` to run retrieval and evaluation on the queries defined in ```eval/queries.csv```.
+Run ```./scripts/infer.sh``` to run retrieval and evaluation on the queries defined in ```eval/queries.csv```.
 Detailed results are written in ```results.code-code.sys```. 
 For evaluation these are processed and can be found in ```predictions.csv```.  
 
