@@ -47,7 +47,7 @@ You also may want to change the variable ```$MODEL_CHECKPOINT``` in the script t
 Run ```./scripts/fairseq-create-embeddings.sh``` to create the embeddings.
 
 ### Retrieval / Inference
-Run ```./scripts/fairseq-infer.sh``` to run retrieval and evaluation on the queries defined in ```eval/prediction.csv```.
+Run ```./scripts/fairseq-infer.sh``` to run retrieval and evaluation on the queries defined in ```eval/queries.csv```.
 Detailed results are written in ```results.code-code.sys```. 
 For evaluation these are processed and can be found in ```predictions.csv```.  
 
